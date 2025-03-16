@@ -46,13 +46,11 @@ class UserXMLParser: NSObject, XMLParserDelegate {
             // Get employee ID from attribute
             if let id = attributeDict["id"] {
                 employeeId = id
-                print("DEBUG: Found employee with ID: \(id)")
             }
         } else if elementName == "field" && isParsingEmployee {
             // Get field ID from attribute
             if let fieldId = attributeDict["id"] {
                 currentFieldId = fieldId
-                print("DEBUG: Parsing field: \(fieldId)")
             }
         }
     }
@@ -68,7 +66,6 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 department: department,
                 photoUrl: photoUrl
             )
-            print("DEBUG: Created user object - Name: \(firstName) \(lastName), Job: \(jobTitle), Dept: \(department)")
             isParsingEmployee = false
         } else if elementName == "field" && isParsingEmployee {
             // Process the field based on its ID
@@ -152,9 +149,6 @@ class BambooHRService {
             return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
         }
 
-        print("DEBUG: Fetching user from endpoint: \(endpoint.absoluteString)")
-        print("DEBUG: Using employee ID: \(settings.employeeId)")
-
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.addValue("application/xml", forHTTPHeaderField: "Accept")
@@ -162,7 +156,6 @@ class BambooHRService {
         // Add Basic Authentication
         let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
         request.addValue(authString, forHTTPHeaderField: "Authorization")
-        print("DEBUG: Authorization header set (API key length: \(settings.apiKey.count))")
 
         return session.dataTaskPublisher(for: request)
             .mapError { error -> BambooHRError in
@@ -174,8 +167,6 @@ class BambooHRService {
                     print("DEBUG: Invalid response type")
                     return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
                 }
-
-                print("DEBUG: Received response with status code: \(httpResponse.statusCode)")
 
                 guard httpResponse.statusCode == 200 else {
                     if httpResponse.statusCode == 401 {
@@ -190,15 +181,9 @@ class BambooHRService {
                     }
                 }
 
-                print("DEBUG: Successful response, attempting to parse XML user data")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("DEBUG: Response body: \(responseString)")
-                }
-
                 // Parse XML response
                 do {
                     let user = try self.parseUserXML(data: data)
-                    print("DEBUG: Successfully parsed user XML")
                     return Just(user)
                         .setFailureType(to: BambooHRError.self)
                         .eraseToAnyPublisher()
@@ -221,10 +206,7 @@ class BambooHRService {
         let startDateString = dateFormatter.string(from: startDate)
         let endDateString = dateFormatter.string(from: endDate)
 
-        print("DEBUG: Fetching leave entries from \(startDateString) to \(endDateString)")
-
         let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_off/whos_out")
-        print("DEBUG: Leave endpoint: \(endpoint.absoluteString)")
 
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
         components?.queryItems = [
@@ -238,8 +220,6 @@ class BambooHRService {
             return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
         }
 
-        print("DEBUG: Final leave URL with query params: \(url.absoluteString)")
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -247,7 +227,6 @@ class BambooHRService {
         // Add Basic Authentication
         let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
         request.addValue(authString, forHTTPHeaderField: "Authorization")
-        print("DEBUG: Authorization header set for leave request")
 
         return session.dataTaskPublisher(for: request)
             .mapError { error -> BambooHRError in
@@ -260,8 +239,6 @@ class BambooHRService {
                     return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
                 }
 
-                print("DEBUG: Leave response status code: \(httpResponse.statusCode)")
-
                 guard httpResponse.statusCode == 200 else {
                     if httpResponse.statusCode == 401 {
                         print("DEBUG: Authentication error (401) in leave request")
@@ -273,11 +250,6 @@ class BambooHRService {
                         }
                         return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
                     }
-                }
-
-                print("DEBUG: Successful leave response, attempting to decode")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("DEBUG: Leave response body: \(responseString)")
                 }
 
                 return Just(data)
@@ -298,7 +270,6 @@ class BambooHRService {
         }
 
         let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_tracking/employees/\(settings.employeeId)/projects")
-        print("DEBUG: Fetching projects from endpoint: \(endpoint.absoluteString)")
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
@@ -307,7 +278,6 @@ class BambooHRService {
         // Add Basic Authentication
         let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
         request.addValue(authString, forHTTPHeaderField: "Authorization")
-        print("DEBUG: Authorization header set for projects request")
 
         return session.dataTaskPublisher(for: request)
             .mapError { error -> BambooHRError in
@@ -320,8 +290,6 @@ class BambooHRService {
                     return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
                 }
 
-                print("DEBUG: Projects response status code: \(httpResponse.statusCode)")
-
                 guard httpResponse.statusCode == 200 else {
                     if httpResponse.statusCode == 401 {
                         print("DEBUG: Authentication error (401) in projects request")
@@ -333,11 +301,6 @@ class BambooHRService {
                         }
                         return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
                     }
-                }
-
-                print("DEBUG: Successful projects response, attempting to decode")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("DEBUG: Projects response body: \(responseString)")
                 }
 
                 return Just(data)
@@ -377,14 +340,10 @@ class BambooHRService {
         }
 
         let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_tracking/hour_entries/store")
-        print("DEBUG: Submitting time entry to endpoint: \(endpoint.absoluteString)")
 
         // Format date for logging
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: timeEntry.date)
-
-        print("DEBUG: Time entry details - Date: \(dateString), Hours: \(timeEntry.hours), Project ID: \(timeEntry.projectId ?? "None"), Task ID: \(timeEntry.taskId ?? "None")")
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -394,15 +353,11 @@ class BambooHRService {
         // Add Basic Authentication
         let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
         request.addValue(authString, forHTTPHeaderField: "Authorization")
-        print("DEBUG: Authorization header set for time entry submission")
 
         do {
             encoder.keyEncodingStrategy = .useDefaultKeys  // Ensures property names are not changed
             let encodedData = try encoder.encode(timeEntry)
             request.httpBody = encodedData
-            if let jsonString = String(data: encodedData, encoding: .utf8) {
-                print("DEBUG: Encoded time entry JSON: \(jsonString)")
-            }
         } catch let encodingError {
             print("DEBUG: Error encoding time entry: \(encodingError.localizedDescription)")
             return Fail(error: BambooHRError.decodingError(encodingError)).eraseToAnyPublisher()
@@ -419,8 +374,6 @@ class BambooHRService {
                     return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
                 }
 
-                print("DEBUG: Time entry submission response status code: \(httpResponse.statusCode)")
-
                 guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
                     if httpResponse.statusCode == 401 {
                         print("DEBUG: Authentication error (401) in time entry submission")
@@ -432,11 +385,6 @@ class BambooHRService {
                         }
                         return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
                     }
-                }
-
-                print("DEBUG: Time entry submitted successfully")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("DEBUG: Time entry submission response body: \(responseString)")
                 }
 
                 return Just(true)
