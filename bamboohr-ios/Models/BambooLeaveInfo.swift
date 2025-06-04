@@ -7,6 +7,7 @@ struct BambooLeaveInfo: Identifiable, Decodable {
     let name: String
     let start: String
     let end: String
+    var photoUrl: String?
 
     var startDate: Date? {
         let formatter = DateFormatter()
@@ -29,5 +30,10 @@ struct BambooLeaveInfo: Identifiable, Decodable {
             return "\(days) day" + (days > 1 ? "s" : "")
         }
         return ""
+    }
+    // Computed fallback if photoUrl is nil
+    func computedPhotoUrl(companyDomain: String) -> String? {
+        guard let employeeId = employeeId else { return nil }
+        return "https://api.bamboohr.com/api/gateway.php/\(companyDomain)/v1/employees/\(employeeId)/photo/large"
     }
 }

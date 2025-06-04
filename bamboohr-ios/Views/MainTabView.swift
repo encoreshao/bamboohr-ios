@@ -10,10 +10,8 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
 
-    // Create shared service instance
-    private let bambooHRService = BambooHRService(
-        accountSettings: KeychainManager.shared.loadAccountSettings()
-    )
+    // Use injected service instance
+    private let bambooHRService: BambooHRService
 
     // Create view models
     private let userViewModel: UserViewModel
@@ -21,8 +19,8 @@ struct MainTabView: View {
     private let timeEntryViewModel: TimeEntryViewModel
     private let accountSettingsViewModel: AccountSettingsViewModel
 
-    init() {
-        // Initialize view models with the shared service
+    init(bambooHRService: BambooHRService) {
+        self.bambooHRService = bambooHRService
         userViewModel = UserViewModel(bambooHRService: bambooHRService)
         leaveViewModel = LeaveViewModel(bambooHRService: bambooHRService)
         timeEntryViewModel = TimeEntryViewModel(bambooHRService: bambooHRService)
@@ -66,5 +64,6 @@ struct MainTabView: View {
 }
 
 #Preview {
-    MainTabView()
+    let service = BambooHRService()
+    MainTabView(bambooHRService: service)
 }

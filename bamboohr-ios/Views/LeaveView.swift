@@ -7,6 +7,51 @@
 
 import SwiftUI
 
+struct AuthenticatedAsyncImage: View {
+    let url: URL
+    let apiKey: String
+
+    @State private var image: Image? = nil
+    @State private var loadFailed = false
+
+    var body: some View {
+        Group {
+            if let image = image {
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if loadFailed {
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .foregroundColor(.gray)
+            } else {
+                ProgressView()
+                    .onAppear {
+                        fetchImage()
+                    }
+            }
+        }
+    }
+
+    private func fetchImage() {
+        var request = URLRequest(url: url)
+        let authString = "Basic " + "\(apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.setValue(authString, forHTTPHeaderField: "Authorization")
+
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data = data, let uiImage = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.image = Image(uiImage: uiImage)
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.loadFailed = true
+                }
+            }
+        }.resume()
+    }
+}
+
 struct LeaveView: View {
     @ObservedObject var viewModel: LeaveViewModel
     @State private var isRefreshing = false
@@ -25,51 +70,20 @@ struct LeaveView: View {
                             viewModel.loadLeaveInfo()
                         })
                         .frame(maxWidth: .infinity)
-                    } else if viewModel.todayLeaveEntries.isEmpty && viewModel.tomorrowLeaveEntries.isEmpty {
-                        ContentUnavailableView(
-                            "No One is on Leave",
-                            systemImage: "calendar.badge.checkmark",
-                            description: Text("Everyone is available today and tomorrow.")
-                        )
-                        .padding()
                     } else {
-                        // Today's leave section
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Today (\(viewModel.todayLeaveEntries.count))")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .padding(.horizontal)
-
-                            if viewModel.todayLeaveEntries.isEmpty {
-                                Text("No one is on leave today")
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal)
-                                    .padding(.bottom, 10)
-                            } else {
-                                ForEach(viewModel.todayLeaveEntries, id: \.id) { entry in
-                                    LeaveEntryRow(entry: entry)
-                                }
+                        ForEach(0..<5) { offset in
+                            let day = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
+                            let entries = viewModel.leaveEntries.filter { entry in
+                                guard let start = entry.startDate, let end = entry.endDate else { return false }
+                                let dayStart = Calendar.current.startOfDay(for: day)
+                                return (start...end).contains(dayStart)
                             }
-                        }
-
-                        // Tomorrow's leave section
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Tomorrow (\(viewModel.tomorrowLeaveEntries.count))")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .padding(.horizontal)
-                                .padding(.top, 20)
-
-                            if viewModel.tomorrowLeaveEntries.isEmpty {
-                                Text("No one is on leave tomorrow")
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal)
-                                    .padding(.bottom, 10)
-                            } else {
-                                ForEach(viewModel.tomorrowLeaveEntries, id: \.id) { entry in
-                                    LeaveEntryRow(entry: entry)
-                                }
-                            }
+                            SectionCard(
+                                title: formattedDate(day),
+                                entries: entries,
+                                emptyText: "No one is on leave"
+                            )
+                            .padding(.horizontal)
                         }
                     }
                 }
@@ -79,10 +93,6 @@ struct LeaveView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack {
-                        // Image("b-logo-green")
-                        //     .resizable()
-                        //     .scaledToFit()
-                        //     .frame(height: 30)
                         Text("Who's Out")
                             .font(.headline)
                     }
@@ -109,18 +119,79 @@ struct LeaveView: View {
             }
         }
     }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E, MMM d, yyyy"
+        return formatter.string(from: date)
+    }
+}
+
+struct SectionCard: View {
+    let title: String
+    let entries: [BambooLeaveInfo]
+    let emptyText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding([.top, .horizontal])
+                .padding(.bottom, 6)
+
+            if entries.isEmpty {
+                Text(emptyText)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                    .padding(.bottom, 10)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \ .element.id) { index, entry in
+                        LeaveEntryRow(entry: entry, isOdd: index % 2 == 1)
+                        if entry.id != entries.last?.id {
+                            Divider()
+                                .padding(.leading, 72)
+                        }
+                    }
+                }
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        )
+        .padding(.vertical, 4)
+    }
 }
 
 struct LeaveEntryRow: View {
     let entry: BambooLeaveInfo
+    let isOdd: Bool
+    @EnvironmentObject var accountSettings: AccountSettingsViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 12) {
+                // Avatar
+                if let urlString = entry.photoUrl, let url = URL(string: urlString), !accountSettings.apiKey.isEmpty {
+                    AuthenticatedAsyncImage(url: url, apiKey: accountSettings.apiKey)
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable()
+                        .frame(width: 48, height: 48)
+                        .foregroundColor(.gray)
+                }
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.name)
                         .font(.headline)
-
                     Text(entry.type)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -128,30 +199,35 @@ struct LeaveEntryRow: View {
 
                 Spacer()
 
-                if let startDate = entry.startDate, let endDate = entry.endDate {
-                    DateRangeView(startDate: startDate, endDate: endDate)
-                }
-            }
-
-            // Duration badge
-            HStack {
-                Spacer()
+                // Off days badge (keep in main row)
                 if let duration = entry.leaveDuration {
                     Text(String(format: "%d day%@", duration, duration > 1 ? "s" : ""))
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
+                        .font(.caption2)
+                        .padding(.horizontal,10)
+                        .padding(.vertical, 5)
+                        .background(Color.blue.opacity(0.15))
                         .foregroundColor(.blue)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
                 }
             }
+            // Date range on a separate line with extra padding
+            if let startDate = entry.startDate, let endDate = entry.endDate {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 14, weight: .medium))
+                    DateRangeView(startDate: startDate, endDate: endDate)
+                        .font(.caption)
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+                .padding(.horizontal, 4)
+            }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(10)
-        .shadow(radius: 1)
+        .padding(.vertical, 20)
         .padding(.horizontal)
+        .background(isOdd ? Color(.systemGray6) : Color.clear)
     }
 }
 

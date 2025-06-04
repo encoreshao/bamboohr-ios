@@ -45,10 +45,6 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack {
-                        // Image("40")
-                        //     .resizable()
-                        //     .scaledToFit()
-                        //     .frame(height: 30)
                         Text("BambooHR")
                             .font(.headline)
                     }
@@ -74,6 +70,31 @@ struct HomeView: View {
                 viewModel.loadUserInfo()
             }
         }
+    }
+
+    static func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
+    }
+}
+
+struct CardSection<Content: View>: View {
+    let title: String
+    let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .padding(.bottom, 2)
+            content()
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .padding(.horizontal, 4)
     }
 }
 

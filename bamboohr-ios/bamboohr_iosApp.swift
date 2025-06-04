@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct bamboohr_iosApp: App {
+    @StateObject private var accountSettings: AccountSettingsViewModel
+    private let bambooHRService: BambooHRService
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             User.self,
@@ -26,9 +28,16 @@ struct bamboohr_iosApp: App {
         }
     }()
 
+    init() {
+        let bambooHRService = BambooHRService()
+        self.bambooHRService = bambooHRService
+        _accountSettings = StateObject(wrappedValue: AccountSettingsViewModel(bambooHRService: bambooHRService))
+    }
+
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            MainTabView(bambooHRService: bambooHRService)
+                .environmentObject(accountSettings)
         }
         .modelContainer(sharedModelContainer)
     }

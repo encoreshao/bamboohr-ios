@@ -29,10 +29,9 @@ class UserXMLParser: NSObject, XMLParserDelegate {
     private var department = ""
     private var location = ""
     private var photoUrl: String?
-
+    private var preferredName: String?
     // Buffer for collecting text content
     private var currentText = ""
-
     // Flag to track if we're inside the employee element
     private var isParsingEmployee = false
 
@@ -40,7 +39,6 @@ class UserXMLParser: NSObject, XMLParserDelegate {
         // Clear the text buffer when starting a new element
         currentText = ""
         currentElement = elementName
-
         if elementName == "employee" {
             isParsingEmployee = true
             // Get employee ID from attribute
@@ -64,13 +62,13 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 lastName: lastName,
                 jobTitle: jobTitle,
                 department: department,
-                photoUrl: photoUrl
+                photoUrl: photoUrl,
+                nickname: preferredName
             )
             isParsingEmployee = false
         } else if elementName == "field" && isParsingEmployee {
             // Process the field based on its ID
             let fieldValue = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-
             switch currentFieldId {
             case "firstName":
                 firstName = fieldValue
@@ -84,10 +82,11 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 location = fieldValue
             case "photoUrl":
                 photoUrl = fieldValue
+            case "preferredName":
+                preferredName = fieldValue
             default:
                 print("DEBUG: Ignoring unknown field: \(currentFieldId)")
             }
-
             // Reset the current field ID
             currentFieldId = ""
         }
@@ -141,7 +140,7 @@ class BambooHRService {
         // Use URLComponents to properly add query parameters
         var components = URLComponents(url: baseEndpoint, resolvingAgainstBaseURL: true)
         components?.queryItems = [
-            URLQueryItem(name: "fields", value: "firstName,lastName,jobTitle,department,location")
+            URLQueryItem(name: "fields", value: "firstName,lastName,jobTitle,department,location,preferredName")
         ]
 
         guard let endpoint = components?.url else {
@@ -177,17 +176,26 @@ class BambooHRService {
                         if let responseString = String(data: data, encoding: .utf8) {
                             print("DEBUG: Response body: \(responseString)")
                         }
-                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)"))
+                            .eraseToAnyPublisher()
                     }
                 }
 
                 // Parse XML response
                 do {
                     let user = try self.parseUserXML(data: data)
+                    // Ensure photoUrl is set for the user
+                    if user.photoUrl == nil, let settings = self.accountSettings {
+                        user.photoUrl = "https://api.bamboohr.com/api/gateway.php/\(settings.companyDomain)/v1/employees/\(settings.employeeId)/photo/large"
+                    }
                     return Just(user)
                         .setFailureType(to: BambooHRError.self)
                         .eraseToAnyPublisher()
                 } catch {
+                    // Log the raw XML response for debugging
+                    if let xmlString = String(data: data, encoding: .utf8) {
+                        print("DEBUG: Raw XML response (parsing failed): \n\(xmlString)")
+                    }
                     print("DEBUG: XML parsing error: \(error.localizedDescription)")
                     return Fail(error: BambooHRError.decodingError(error)).eraseToAnyPublisher()
                 }
@@ -262,7 +270,15 @@ class BambooHRService {
                     let rawArray = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] ?? []
                     let timeOffData = rawArray.filter { $0["type"] as? String == "timeOff" }
                     let filteredData = try JSONSerialization.data(withJSONObject: timeOffData, options: [])
-                    let leaveInfos = try self.decoder.decode([BambooLeaveInfo].self, from: filteredData)
+                    var leaveInfos = try self.decoder.decode([BambooLeaveInfo].self, from: filteredData)
+                    // Set photoUrl for each entry
+                    if let companyDomain = settings.companyDomain as String? {
+                        for i in 0..<leaveInfos.count {
+                            if leaveInfos[i].photoUrl == nil, let employeeId = leaveInfos[i].employeeId {
+                                leaveInfos[i].photoUrl = "https://api.bamboohr.com/api/gateway.php/\(companyDomain)/v1/employees/\(employeeId)/photo/large"
+                            }
+                        }
+                    }
                     return Just(leaveInfos)
                         .setFailureType(to: BambooHRError.self)
                         .eraseToAnyPublisher()
