@@ -112,35 +112,39 @@ struct LeaveView: View {
 }
 
 struct LeaveEntryRow: View {
-    let entry: LeaveInfo
+    let entry: BambooLeaveInfo
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.employeeName)
+                    Text(entry.name)
                         .font(.headline)
 
-                    Text(entry.leaveType)
+                    Text(entry.type)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                DateRangeView(startDate: entry.startDate, endDate: entry.endDate)
+                if let startDate = entry.startDate, let endDate = entry.endDate {
+                    DateRangeView(startDate: startDate, endDate: endDate)
+                }
             }
 
             // Duration badge
             HStack {
                 Spacer()
-                Text(String(format: "%d day%@", entry.leaveDuration, entry.leaveDuration > 1 ? "s" : ""))
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundColor(.blue)
-                    .cornerRadius(8)
+                if let duration = entry.leaveDuration {
+                    Text(String(format: "%d day%@", duration, duration > 1 ? "s" : ""))
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+                }
             }
         }
         .padding()

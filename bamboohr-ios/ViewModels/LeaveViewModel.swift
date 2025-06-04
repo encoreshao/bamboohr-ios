@@ -10,9 +10,9 @@ import Combine
 import SwiftUI
 
 class LeaveViewModel: ObservableObject {
-@Published var leaveEntries: [LeaveInfo] = []
-@Published var todayLeaveEntries: [LeaveInfo] = []
-@Published var tomorrowLeaveEntries: [LeaveInfo] = []
+@Published var leaveEntries: [BambooLeaveInfo] = []
+@Published var todayLeaveEntries: [BambooLeaveInfo] = []
+@Published var tomorrowLeaveEntries: [BambooLeaveInfo] = []
 @Published var isLoading = false
 @Published var error: String?
 
@@ -39,14 +39,14 @@ class LeaveViewModel: ObservableObject {
         bambooHRService.fetchTimeOffEntries(startDate: startOfMonth, endDate: endOfMonth)
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     self?.isLoading = false
 
                     if case .failure(let error) = completion {
                         self?.error = error.localizedDescription
                     }
                 },
-                receiveValue: { [weak self] entries in
+                receiveValue: { [weak self] (entries: [BambooLeaveInfo]) in
                     self?.leaveEntries = entries
                     self?.updateTodayLeaveEntries()
                 }
@@ -60,15 +60,17 @@ class LeaveViewModel: ObservableObject {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
 
         todayLeaveEntries = leaveEntries.filter { entry in
-            let startDate = calendar.startOfDay(for: entry.startDate)
-            let endDate = calendar.startOfDay(for: entry.endDate)
-            return (startDate...endDate).contains(today)
+            guard let startDate = entry.startDate, let endDate = entry.endDate else { return false }
+            let start = calendar.startOfDay(for: startDate)
+            let end = calendar.startOfDay(for: endDate)
+            return (start...end).contains(today)
         }
 
         tomorrowLeaveEntries = leaveEntries.filter { entry in
-            let startDate = calendar.startOfDay(for: entry.startDate)
-            let endDate = calendar.startOfDay(for: entry.endDate)
-            return (startDate...endDate).contains(tomorrow)
+            guard let startDate = entry.startDate, let endDate = entry.endDate else { return false }
+            let start = calendar.startOfDay(for: startDate)
+            let end = calendar.startOfDay(for: endDate)
+            return (start...end).contains(tomorrow)
         }
     }
 }

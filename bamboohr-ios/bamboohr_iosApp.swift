@@ -13,7 +13,6 @@ struct bamboohr_iosApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             User.self,
-            LeaveInfo.self,
             TimeEntry.self,
             Project.self,
             AccountSettings.self

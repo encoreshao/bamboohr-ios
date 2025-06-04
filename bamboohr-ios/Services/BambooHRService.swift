@@ -195,7 +195,7 @@ class BambooHRService {
             .eraseToAnyPublisher()
     }
 
-    func fetchTimeOffEntries(startDate: Date, endDate: Date) -> AnyPublisher<[LeaveInfo], BambooHRError> {
+    func fetchTimeOffEntries(startDate: Date, endDate: Date) -> AnyPublisher<[BambooLeaveInfo], BambooHRError> {
         guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
             print("DEBUG: Invalid URL or missing account settings in fetchTimeOffEntries")
             return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
@@ -233,7 +233,7 @@ class BambooHRService {
                 print("DEBUG: Network error in leave request: \(error.localizedDescription)")
                 return BambooHRError.networkError(error)
             }
-            .flatMap { data, response -> AnyPublisher<[LeaveInfo], BambooHRError> in
+            .flatMap { data, response -> AnyPublisher<[BambooLeaveInfo], BambooHRError> in
                 guard let httpResponse = response as? HTTPURLResponse else {
                     print("DEBUG: Invalid response type in leave request")
                     return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
@@ -246,19 +246,32 @@ class BambooHRService {
                     } else {
                         print("DEBUG: Unexpected status code in leave request: \(httpResponse.statusCode)")
                         if let responseString = String(data: data, encoding: .utf8) {
-                            print("DEBUG: Leave response body: \(responseString)")
+                            print("DEBUG: Raw leave response: \(responseString)")
                         }
                         return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
                     }
                 }
 
-                return Just(data)
-                    .decode(type: [LeaveInfo].self, decoder: self.decoder)
-                    .mapError { error -> BambooHRError in
-                        print("DEBUG: Decoding error in leave response: \(error.localizedDescription)")
-                        return BambooHRError.decodingError(error)
-                    }
-                    .eraseToAnyPublisher()
+                // Log the raw response for debugging
+                // if let responseString = String(data: data, encoding: .utf8) {
+                //     print("DEBUG: Raw leave response: \(responseString)")
+                // }
+
+                // Try to decode as an array of dictionaries, filter for type == "timeOff", then decode only those into [BambooLeaveInfo]
+                do {
+                    let rawArray = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] ?? []
+                    let timeOffData = rawArray.filter { $0["type"] as? String == "timeOff" }
+                    let filteredData = try JSONSerialization.data(withJSONObject: timeOffData, options: [])
+                    let leaveInfos = try self.decoder.decode([BambooLeaveInfo].self, from: filteredData)
+                    return Just(leaveInfos)
+                        .setFailureType(to: BambooHRError.self)
+                        .eraseToAnyPublisher()
+                } catch {
+                    print("DEBUG: Decoding error in leave response: \(error.localizedDescription). Returning empty array.")
+                    return Just([])
+                        .setFailureType(to: BambooHRError.self)
+                        .eraseToAnyPublisher()
+                }
             }
             .eraseToAnyPublisher()
     }
