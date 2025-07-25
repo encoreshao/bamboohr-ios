@@ -47,23 +47,54 @@ final class TimeEntry {
 // MARK: - Codable Extension
 extension TimeEntry: Codable {
     enum CodingKeys: String, CodingKey {
+        case id
         case employeeId
         case date
         case hours
-        case projectId
-        case taskId
         case note
+        case projectInfo
+        case type
+        case timezone
+        case approved
+        case approvedAt
     }
 
-    // Root level keys for the request body
+    enum ProjectInfoKeys: String, CodingKey {
+        case project
+        case task
+    }
+
+    enum ProjectKeys: String, CodingKey {
+        case id
+        case name
+    }
+
+    enum TaskKeys: String, CodingKey {
+        case id
+        case name
+    }
+
+    // Root level keys for the request body (for encoding/submitting)
     enum RootKeys: String, CodingKey {
         case hours
+    }
+
+    // Keys for encoding when submitting time entries (different from response structure)
+    enum SubmissionKeys: String, CodingKey {
+        case employeeId
+        case date
+        case hours
+        case note
+        case projectId
+        case taskId
     }
 
     convenience init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        let id = UUID().uuidString
+        // Parse ID - API returns it as Int, we store as String
+        let idInt = try container.decode(Int.self, forKey: .id)
+        let id = String(idInt)
 
         // Parse employeeId as Int
         let employeeIdInt = try container.decode(Int.self, forKey: .employeeId)
@@ -79,15 +110,30 @@ extension TimeEntry: Codable {
 
         let hours = try container.decode(Double.self, forKey: .hours)
 
-        // Parse projectId as Int
-        let projectIdInt = try container.decodeIfPresent(Int.self, forKey: .projectId)
-        let projectId = projectIdInt != nil ? String(projectIdInt!) : nil
+        // Parse note - can be null in API
+        let note = try container.decodeIfPresent(String.self, forKey: .note)
 
-        // Parse taskId as Int
-        let taskIdInt = try container.decodeIfPresent(Int.self, forKey: .taskId)
-        let taskId = taskIdInt != nil ? String(taskIdInt!) : nil
-        
-        let note = try container.decode(String.self, forKey: .note)
+        // Parse nested projectInfo structure
+        var projectId: String?
+        var projectName: String?
+        var taskId: String?
+        var taskName: String?
+
+        if let projectInfoContainer = try? container.nestedContainer(keyedBy: ProjectInfoKeys.self, forKey: .projectInfo) {
+            // Parse project info
+            if let projectContainer = try? projectInfoContainer.nestedContainer(keyedBy: ProjectKeys.self, forKey: .project) {
+                let projectIdInt = try projectContainer.decode(Int.self, forKey: .id)
+                projectId = String(projectIdInt)
+                projectName = try projectContainer.decode(String.self, forKey: .name)
+            }
+
+            // Parse task info
+            if let taskContainer = try? projectInfoContainer.nestedContainer(keyedBy: TaskKeys.self, forKey: .task) {
+                let taskIdInt = try taskContainer.decode(Int.self, forKey: .id)
+                taskId = String(taskIdInt)
+                taskName = try taskContainer.decode(String.self, forKey: .name)
+            }
+        }
 
         self.init(
             id: id,
@@ -95,8 +141,11 @@ extension TimeEntry: Codable {
             date: date,
             hours: hours,
             projectId: projectId,
+            projectName: projectName,
             taskId: taskId,
-            note: note
+            taskName: taskName,
+            note: note,
+            isSubmitted: true // Since it's from API, it's already submitted
         )
     }
 
@@ -110,28 +159,30 @@ extension TimeEntry: Codable {
         var rootContainer = encoder.container(keyedBy: RootKeys.self)
         var entriesArray = rootContainer.nestedUnkeyedContainer(forKey: .hours)
 
-        var entryContainer = entriesArray.nestedContainer(keyedBy: CodingKeys.self)
+        var entryContainer = entriesArray.nestedContainer(keyedBy: SubmissionKeys.self)
 
         // Convert employeeId to Int
         if let employeeIdInt = Int(employeeId) {
             try entryContainer.encode(employeeIdInt, forKey: .employeeId)
         } else {
             throw EncodingError.invalidValue(employeeId, EncodingError.Context(
-                codingPath: [RootKeys.hours, CodingKeys.employeeId],
+                codingPath: [RootKeys.hours, SubmissionKeys.employeeId],
                 debugDescription: "employeeId must be a valid integer"
             ))
         }
 
         try entryContainer.encode(dateString, forKey: .date)
         try entryContainer.encode(hours, forKey: .hours)
-        try entryContainer.encode(note, forKey: .note)
+
+        // Note can be nil, so use encodeIfPresent
+        try entryContainer.encodeIfPresent(note, forKey: .note)
 
         // Convert projectId to Int if present
         if let projectId = projectId, let projectIdInt = Int(projectId) {
             try entryContainer.encode(projectIdInt, forKey: .projectId)
         } else if projectId != nil {
             throw EncodingError.invalidValue(projectId!, EncodingError.Context(
-                codingPath: [RootKeys.hours, CodingKeys.projectId],
+                codingPath: [RootKeys.hours, SubmissionKeys.projectId],
                 debugDescription: "projectId must be a valid integer"
             ))
         }
@@ -141,7 +192,7 @@ extension TimeEntry: Codable {
             try entryContainer.encode(taskIdInt, forKey: .taskId)
         } else if taskId != nil {
             throw EncodingError.invalidValue(taskId!, EncodingError.Context(
-                codingPath: [RootKeys.hours, CodingKeys.taskId],
+                codingPath: [RootKeys.hours, SubmissionKeys.taskId],
                 debugDescription: "taskId must be a valid integer"
             ))
         }

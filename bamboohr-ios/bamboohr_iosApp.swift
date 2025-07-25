@@ -10,13 +10,12 @@ import SwiftData
 
 @main
 struct bamboohr_iosApp: App {
-    @StateObject private var accountSettings: AccountSettingsViewModel
-    private let bambooHRService: BambooHRService
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             User.self,
             TimeEntry.self,
             Project.self,
+            Task.self,
             AccountSettings.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -28,17 +27,14 @@ struct bamboohr_iosApp: App {
         }
     }()
 
-    init() {
-        let bambooHRService = BambooHRService()
-        self.bambooHRService = bambooHRService
-        _accountSettings = StateObject(wrappedValue: AccountSettingsViewModel(bambooHRService: bambooHRService))
-    }
-
     var body: some Scene {
         WindowGroup {
-            MainTabView(bambooHRService: bambooHRService)
-                .environmentObject(accountSettings)
+            MainTabView()
+                .modelContainer(sharedModelContainer)
+                .onAppear {
+                    // Initialize localization
+                    _ = LocalizationManager.shared
+                }
         }
-        .modelContainer(sharedModelContainer)
     }
 }

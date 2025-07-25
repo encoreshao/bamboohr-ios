@@ -9,125 +9,396 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: AccountSettingsViewModel
+    @StateObject private var localizationManager = LocalizationManager.shared
     @State private var showingApiKeyInfo = false
     @State private var showingClearConfirmation = false
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("BambooHR Account")) {
-                    TextField("Company Domain", text: $viewModel.companyDomain)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .keyboardType(.URL)
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    // Connection status section
+                    connectionStatusSection
 
-                    TextField("Employee ID", text: $viewModel.employeeId)
-                        .keyboardType(.numberPad)
+                    // Account configuration section
+                    accountConfigSection
 
-                    SecureField("API Key", text: $viewModel.apiKey)
+                    // Actions section
+                    actionsSection
 
-                    Button(action: {
-                        showingApiKeyInfo = true
-                    }) {
-                        HStack {
-                            Image(systemName: "info.circle")
-                            Text("How to get your API Key")
-                        }
-                    }
-                    .foregroundColor(.blue)
+                    // App information section
+                    appInfoSection
                 }
-
-                Section {
-                    Button(action: {
-                        viewModel.saveSettings()
-                    }) {
-                        HStack {
-                            Spacer()
-                            if viewModel.isSaving {
-                                ProgressView()
-                                    .padding(.trailing, 10)
-                            }
-                            Text("Save Settings")
-                            Spacer()
-                        }
-                    }
-                    .disabled(viewModel.isSaving)
-
-                    if viewModel.isConfigured {
-                        Button(action: {
-                            showingClearConfirmation = true
-                        }) {
-                            HStack {
-                                Spacer()
-                                Text("Clear Settings")
-                                    .foregroundColor(.red)
-                                Spacer()
-                            }
-                        }
-                    }
-                }
-
-                if let error = viewModel.error {
-                    Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                    }
-                }
-
-                if let successMessage = viewModel.successMessage {
-                    Section {
-                        Text(successMessage)
-                            .foregroundColor(.green)
-                    }
-                }
-
-                Section(header: Text("About")) {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Minimum iOS")
-                        Spacer()
-                        Text("iOS 15.0")
-                            .foregroundColor(.secondary)
-                    }
-                }
+                .padding()
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    HStack {
-                        // Image("40")
-                        //     .resizable()
-                        //     .scaledToFit()
-                        //     .frame(height: 30)
-                        Text("Settings")
+                    HStack(spacing: 8) {
+                        Image(systemName: "gear")
+                            .foregroundColor(.gray)
+                        Text(localizationManager.localized(.settingsTitle))
                             .font(.headline)
+                            .fontWeight(.semibold)
                     }
                 }
             }
-            .alert("How to Get Your API Key", isPresented: $showingApiKeyInfo) {
-                Button("OK", role: .cancel) { }
+            .alert(localizationManager.localized(.settingsApiKeyHelp), isPresented: $showingApiKeyInfo) {
+                Button(localizationManager.localized(.confirm), role: .cancel) { }
             } message: {
-                Text("1. Log in to BambooHR web version\n2. Go to your account settings\n3. Navigate to API Keys section\n4. Generate a new API Key\n\nNote: You may need administrator permissions to generate an API key.")
+                Text(getLocalizedText(
+                    "1. 登录BambooHR网页版\n2. 进入账户设置\n3. 导航到API密钥部分\n4. 生成新的API密钥\n\n注意：您可能需要管理员权限来生成API密钥。",
+                    "1. Log in to BambooHR web\n2. Go to Account Settings\n3. Navigate to API Keys section\n4. Generate a new API key\n\nNote: You may need admin permissions to generate API keys."
+                ))
             }
-            .alert("Clear Settings", isPresented: $showingClearConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Clear", role: .destructive) {
+            .alert(localizationManager.localized(.settingsClear), isPresented: $showingClearConfirmation) {
+                Button(localizationManager.localized(.cancel), role: .cancel) { }
+                Button(localizationManager.localized(.settingsClear), role: .destructive) {
                     viewModel.clearSettings()
                 }
             } message: {
-                Text("Are you sure you want to clear all your account settings? This action cannot be undone.")
+                Text(getLocalizedText(
+                    "确定要清除所有账户设置吗？此操作无法撤销。",
+                    "Are you sure you want to clear all account settings? This action cannot be undone."
+                ))
             }
+        }
+    }
+
+    // MARK: - Connection Status Section
+    private var connectionStatusSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .foregroundColor(.blue)
+                    .font(.title2)
+                Text(localizationManager.localized(.settingsConnectionStatus))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            HStack {
+                StatusBadge(
+                    isConnected: viewModel.hasValidSettings,
+                    connectedText: localizationManager.localized(.settingsConnected),
+                    disconnectedText: localizationManager.localized(.settingsNotConfigured)
+                )
+
+                Spacer()
+            }
+
+            Text(viewModel.hasValidSettings
+                 ? localizationManager.localized(.settingsConnectionNormal)
+                 : localizationManager.localized(.settingsConfigureAccount))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+
+    // MARK: - Account Configuration Section
+    private var accountConfigSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "person.crop.circle")
+                    .foregroundColor(.blue)
+                    .font(.title2)
+                Text(localizationManager.localized(.settingsBambooAccount))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            VStack(spacing: 16) {
+                ModernInputField(
+                    title: localizationManager.localized(.settingsCompanyDomain),
+                    placeholder: "mycompany",
+                    text: $viewModel.companyDomain,
+                    icon: "building.2"
+                )
+
+                ModernInputField(
+                    title: localizationManager.localized(.settingsEmployeeId),
+                    placeholder: "12345",
+                    text: $viewModel.employeeId,
+                    icon: "person.text.rectangle"
+                )
+
+                ModernSecureField(
+                    title: localizationManager.localized(.settingsApiKey),
+                    placeholder: getLocalizedText("在此输入API密钥", "Enter API key here"),
+                    text: $viewModel.apiKey,
+                    icon: "key"
+                ) {
+                    Button {
+                        showingApiKeyInfo = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.caption)
+                            Text(localizationManager.localized(.settingsApiKeyHelp))
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+
+    // MARK: - Actions Section
+    private var actionsSection: some View {
+        VStack(spacing: 12) {
+            // Save Settings Button
+            Button(action: {
+                viewModel.saveSettings()
+            }) {
+                HStack {
+                    if viewModel.isTesting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                    }
+                    Image(systemName: "checkmark.circle")
+                        .font(.headline)
+                    Text(viewModel.isTesting ? localizationManager.localized(.settingsSaving) : localizationManager.localized(.settingsSave))
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(viewModel.isTesting ? Color.gray : Color.blue)
+                )
+            }
+            .disabled(viewModel.isTesting || !viewModel.hasRequiredFields)
+
+            // Clear Settings Button
+            Button(action: {
+                showingClearConfirmation = true
+            }) {
+                HStack {
+                    Image(systemName: "trash")
+                        .font(.headline)
+                    Text(localizationManager.localized(.settingsClear))
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red)
+                )
+            }
+            .disabled(!viewModel.hasValidSettings)
+        }
+    }
+
+    // MARK: - App Information Section
+    private var appInfoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "info.circle")
+                    .foregroundColor(.gray)
+                    .font(.title2)
+                Text(localizationManager.localized(.settingsAppInfo))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                InfoRow(
+                    title: localizationManager.localized(.settingsVersion),
+                    value: appVersion,
+                    icon: "app.badge"
+                )
+
+                InfoRow(
+                    title: localizationManager.localized(.settingsMinimumIos),
+                    value: "iOS 15.0+",
+                    icon: "iphone"
+                )
+
+                InfoRow(
+                    title: localizationManager.localized(.settingsBuildDate),
+                    value: buildDate,
+                    icon: "calendar"
+                )
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+
+    // MARK: - Helper Properties
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+
+    private var buildDate: String {
+        let formatter = DateFormatter()
+        if localizationManager.currentLanguage == "zh-Hans" {
+            formatter.dateFormat = "yyyy年M月d日"
+            formatter.locale = Locale(identifier: "zh_CN")
+        } else {
+            formatter.dateFormat = "MMM d, yyyy"
+            formatter.locale = Locale(identifier: "en_US")
+        }
+        return formatter.string(from: Date())
+    }
+
+    private func getLocalizedText(_ chinese: String, _ english: String) -> String {
+        return localizationManager.currentLanguage == "zh-Hans" ? chinese : english
+    }
+}
+
+// MARK: - Status Badge
+struct StatusBadge: View {
+    let isConnected: Bool
+    let connectedText: String
+    let disconnectedText: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(isConnected ? Color.green : Color.orange)
+                .frame(width: 8, height: 8)
+
+            Text(isConnected ? connectedText : disconnectedText)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(isConnected ? .green : .orange)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill((isConnected ? Color.green : Color.orange).opacity(0.1))
+        )
+    }
+}
+
+// MARK: - Modern Input Field
+struct ModernInputField: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundColor(.blue)
+                    .font(.caption)
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+
+            TextField(placeholder, text: $text)
+                .textFieldStyle(PlainTextFieldStyle())
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
         }
     }
 }
 
+// MARK: - Modern Secure Field
+struct ModernSecureField<Content: View>: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    let icon: String
+    let accessory: () -> Content
+
+    init(title: String, placeholder: String, text: Binding<String>, icon: String, @ViewBuilder accessory: @escaping () -> Content = { EmptyView() }) {
+        self.title = title
+        self.placeholder = placeholder
+        self._text = text
+        self.icon = icon
+        self.accessory = accessory
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundColor(.blue)
+                    .font(.caption)
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Spacer()
+                accessory()
+            }
+
+            SecureField(placeholder, text: $text)
+                .textFieldStyle(PlainTextFieldStyle())
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
+        }
+    }
+}
+
+// MARK: - Info Row
+struct InfoRow: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.gray)
+                .font(.title3)
+                .frame(width: 24)
+
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 #Preview {
-    let service = BambooHRService()
-    let viewModel = AccountSettingsViewModel(bambooHRService: service)
-    return SettingsView(viewModel: viewModel)
+    SettingsView(viewModel: AccountSettingsViewModel(bambooHRService: BambooHRService.shared))
 }

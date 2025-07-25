@@ -14,10 +14,9 @@ class AccountSettingsViewModel: ObservableObject {
     @Published var employeeId: String = ""
     @Published var apiKey: String = ""
     @Published var isLoading = false
-    @Published var isSaving = false
+    @Published var isTesting = false
     @Published var error: String?
     @Published var successMessage: String?
-    @Published var isConfigured = false
 
     private var bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
@@ -27,48 +26,51 @@ class AccountSettingsViewModel: ObservableObject {
         loadSettings()
     }
 
+    var hasValidSettings: Bool {
+        return !companyDomain.isEmpty && !employeeId.isEmpty && !apiKey.isEmpty
+    }
+
+    var hasRequiredFields: Bool {
+        return !companyDomain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+               !employeeId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+               !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func loadSettings() {
         if let settings = KeychainManager.shared.loadAccountSettings() {
             companyDomain = settings.companyDomain
             employeeId = settings.employeeId
             apiKey = settings.apiKey
-            isConfigured = true
 
             // Update the service with the loaded settings
             bambooHRService.updateAccountSettings(settings)
-        } else {
-            isConfigured = false
         }
     }
 
     func saveSettings() {
         guard !companyDomain.isEmpty, !employeeId.isEmpty, !apiKey.isEmpty else {
-            error = "All fields are required"
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.error(localizationManager.localized(.allFieldsRequired))
             return
         }
 
-        isSaving = true
-        error = nil
-        successMessage = nil
+        isTesting = true
 
         let settings = AccountSettings(
-            companyDomain: companyDomain,
-            employeeId: employeeId,
-            apiKey: apiKey,
-            lastSyncDate: Date()
+            companyDomain: companyDomain.trimmingCharacters(in: .whitespacesAndNewlines),
+            employeeId: employeeId.trimmingCharacters(in: .whitespacesAndNewlines),
+            apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         )
 
+        // Save to keychain first
         do {
             try KeychainManager.shared.saveAccountSettings(settings)
-
-            // Update the service with the new settings
-            bambooHRService.updateAccountSettings(settings)
-
             // Test the connection
             testConnection()
         } catch {
-            self.isSaving = false
-            self.error = "Failed to save settings: \(error.localizedDescription)"
+            isTesting = false
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.error(localizationManager.localized(.connectionTestFailed))
         }
     }
 
@@ -78,28 +80,41 @@ class AccountSettingsViewModel: ObservableObject {
             companyDomain = ""
             employeeId = ""
             apiKey = ""
-            isConfigured = false
-            successMessage = "Settings cleared successfully"
+
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.success(localizationManager.localized(.settingsCleared))
         } catch {
-            self.error = "Failed to clear settings: \(error.localizedDescription)"
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.error(localizationManager.localized(.connectionTestFailed))
         }
     }
 
-    private func testConnection() {
-        bambooHRService.fetchCurrentUser()
+    func testConnection() {
+        guard hasValidSettings else {
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.error(localizationManager.localized(.allFieldsRequired))
+            return
+        }
+
+        isTesting = true
+
+        // Test by fetching user info
+        BambooHRService.shared.fetchCurrentUser()
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
-                    self?.isSaving = false
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
+                    self?.isTesting = false
 
                     if case .failure(let error) = completion {
-                        self?.error = "Connection test failed: \(error.localizedDescription)"
-                        self?.isConfigured = false
+                        print("DEBUG: Connection test failed: \(error.localizedDescription)")
+                        let localizationManager = LocalizationManager.shared
+                        ToastManager.shared.error(localizationManager.localized(.connectionTestFailed))
                     }
                 },
-                receiveValue: { [weak self] _ in
-                    self?.successMessage = "Settings saved and connection verified"
-                    self?.isConfigured = true
+                receiveValue: { [weak self] (_: User) in
+                    self?.isTesting = false
+                    let localizationManager = LocalizationManager.shared
+                    ToastManager.shared.success(localizationManager.localized(.settingsSaved))
                 }
             )
             .store(in: &cancellables)

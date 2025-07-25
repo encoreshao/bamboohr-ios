@@ -103,13 +103,15 @@ class UserXMLParser: NSObject, XMLParserDelegate {
 }
 
 class BambooHRService {
+    static let shared = BambooHRService()
+
     private var accountSettings: AccountSettings?
     private let session: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
     init(accountSettings: AccountSettings? = nil) {
-        self.accountSettings = accountSettings
+        self.accountSettings = accountSettings ?? KeychainManager.shared.loadAccountSettings()
         self.session = URLSession.shared
 
         self.encoder = JSONEncoder()
@@ -418,6 +420,100 @@ class BambooHRService {
 
                 return Just(true)
                     .setFailureType(to: BambooHRError.self)
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch Time Entries for a specific date
+    func fetchTimeEntries(for date: Date) -> AnyPublisher<[TimeEntry], BambooHRError> {
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: Invalid URL or missing account settings in fetchTimeEntries")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dateFormatter.string(from: date)
+
+        // Use the correct endpoint format based on working Node.js API
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_tracking/timesheet_entries")
+
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
+        components?.queryItems = [
+            URLQueryItem(name: "employeeIds", value: settings.employeeId), // Note: employeeIds (plural)
+            URLQueryItem(name: "start", value: dateString),
+            URLQueryItem(name: "end", value: dateString)
+        ]
+
+        guard let url = components?.url else {
+            print("DEBUG: Failed to create URL with components")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching time entries from URL: \(url.absoluteString)")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in time entries request: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<[TimeEntry], BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in time entries request")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Time entries response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in time entries request")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else if httpResponse.statusCode == 404 {
+                        print("DEBUG: Time tracking endpoint not found (404) - this may indicate time tracking is not enabled")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Time entries response body: \(responseString)")
+                        }
+                        // Return empty array for 404 as it might just mean no time tracking is enabled
+                        return Just([])
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in time entries request: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Time entries response body: \(responseString)")
+                        }
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                    }
+                }
+
+                // Successfully got 200 response, try to decode
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("DEBUG: Time entries successful response body: \(responseString)")
+                }
+
+                return Just(data)
+                    .decode(type: [TimeEntry].self, decoder: self.decoder)
+                    .mapError { error -> BambooHRError in
+                        print("DEBUG: Decoding error in time entries response: \(error.localizedDescription)")
+                        return BambooHRError.decodingError(error)
+                    }
+                    .catch { _ -> AnyPublisher<[TimeEntry], BambooHRError> in
+                        print("DEBUG: Failed to decode time entries, returning empty array")
+                        // Return empty array if decoding fails
+                        return Just([])
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    }
                     .eraseToAnyPublisher()
             }
             .eraseToAnyPublisher()

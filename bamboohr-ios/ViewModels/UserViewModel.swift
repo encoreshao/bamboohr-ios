@@ -14,7 +14,7 @@ class UserViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private var bambooHRService: BambooHRService
+    private let bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
 
     init(bambooHRService: BambooHRService) {
@@ -24,18 +24,26 @@ class UserViewModel: ObservableObject {
     func loadUserInfo() {
         isLoading = true
         error = nil
+
         bambooHRService.fetchCurrentUser()
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     self?.isLoading = false
+
                     if case .failure(let error) = completion {
-                        print("DEBUG: HomeView loadUserInfo error: \(error)")
-                        self?.error = "Could not load your profile. Please check your network or BambooHR settings."
+                        let localizationManager = LocalizationManager.shared
+                        let errorMessage = localizationManager.localized(.loadingFailed)
+
+                        self?.error = errorMessage
+                        ToastManager.shared.error(errorMessage)
+                        print("DEBUG: Failed to load user info: \(error.localizedDescription)")
                     }
                 },
-                receiveValue: { [weak self] user in
+                receiveValue: { [weak self] (user: User) in
                     self?.user = user
+                    let localizationManager = LocalizationManager.shared
+                    ToastManager.shared.success(localizationManager.localized(.loadingUserInfo))
                 }
             )
             .store(in: &cancellables)

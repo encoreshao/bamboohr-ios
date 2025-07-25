@@ -54,47 +54,48 @@ struct AuthenticatedAsyncImage: View {
 
 struct LeaveView: View {
     @ObservedObject var viewModel: LeaveViewModel
+    @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
 
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                LazyVStack(spacing: 16) {
                     if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.top, 50)
-                    } else if let error = viewModel.error {
-                        ErrorView(message: error, retryAction: {
-                            viewModel.loadLeaveInfo()
-                        })
-                        .frame(maxWidth: .infinity)
+                        loadingView
+                    } else if viewModel.error != nil {
+                        errorView
                     } else {
-                        ForEach(0..<5) { offset in
+                        // Summary header
+                        summaryHeaderView
+
+                        // Daily leave overview
+                        ForEach(0..<7) { offset in
                             let day = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
                             let entries = viewModel.leaveEntries.filter { entry in
                                 guard let start = entry.startDate, let end = entry.endDate else { return false }
                                 let dayStart = Calendar.current.startOfDay(for: day)
                                 return (start...end).contains(dayStart)
                             }
-                            SectionCard(
-                                title: formattedDate(day),
+
+                            DayLeaveCard(
+                                date: day,
                                 entries: entries,
-                                emptyText: "No one is on leave"
+                                isToday: Calendar.current.isDateInToday(day)
                             )
-                            .padding(.horizontal)
                         }
                     }
                 }
-                .padding(.vertical)
-                .frame(maxWidth: .infinity)
+                .padding()
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    HStack {
-                        Text("Who's Out")
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundColor(.orange)
+                        Text(localizationManager.localized(.leaveTitle))
                             .font(.headline)
+                            .fontWeight(.semibold)
                     }
                 }
 
@@ -103,14 +104,13 @@ struct LeaveView: View {
                         viewModel.loadLeaveInfo()
                     } label: {
                         Image(systemName: "arrow.clockwise")
+                            .foregroundColor(.blue)
                     }
                     .disabled(viewModel.isLoading)
                 }
             }
             .refreshable {
-                isRefreshing = true
-                viewModel.loadLeaveInfo()
-                isRefreshing = false
+                await refreshData()
             }
         }
         .onAppear {
@@ -120,140 +120,346 @@ struct LeaveView: View {
         }
     }
 
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E, MMM d, yyyy"
-        return formatter.string(from: date)
+    // MARK: - Loading View
+    private var loadingView: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.orange)
+
+            Text(localizationManager.localized(.loadingLeaveInfo))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
     }
-}
 
-struct SectionCard: View {
-    let title: String
-    let entries: [BambooLeaveInfo]
-    let emptyText: String
+    // MARK: - Error View
+    private var errorView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 50))
+                .foregroundColor(.red)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
+            Text(localizationManager.localized(.loadingFailed))
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding([.top, .horizontal])
-                .padding(.bottom, 6)
 
-            if entries.isEmpty {
-                Text(emptyText)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal)
-                    .padding(.bottom, 10)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(entries.enumerated()), id: \ .element.id) { index, entry in
-                        LeaveEntryRow(entry: entry, isOdd: index % 2 == 1)
-                        if entry.id != entries.last?.id {
-                            Divider()
-                                .padding(.leading, 72)
-                        }
-                    }
-                }
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Text(localizationManager.localized(.networkError))
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+
+            Button(localizationManager.localized(.retry)) {
+                viewModel.loadLeaveInfo()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+
+    // MARK: - Summary Header
+    private var summaryHeaderView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundColor(.orange)
+                    .font(.title2)
+                Text(localizationManager.localized(.leaveWeeklyOverview))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            HStack(spacing: 16) {
+                StatBadge(
+                    title: localizationManager.localized(.leaveToday),
+                    count: getTodayLeaveCount(),
+                    color: .orange
+                )
+
+                StatBadge(
+                    title: localizationManager.localized(.leaveTomorrow),
+                    count: getTomorrowLeaveCount(),
+                    color: .blue
+                )
+
+                StatBadge(
+                    title: localizationManager.localized(.leaveWeekly),
+                    count: getWeeklyLeaveCount(),
+                    color: .purple
+                )
             }
         }
+        .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
-        .padding(.vertical, 4)
+    }
+
+    // MARK: - Helper Methods
+    private func getTodayLeaveCount() -> Int {
+        let today = Calendar.current.startOfDay(for: Date())
+        return viewModel.leaveEntries.filter { entry in
+            guard let start = entry.startDate, let end = entry.endDate else { return false }
+            return (start...end).contains(today)
+        }.count
+    }
+
+    private func getTomorrowLeaveCount() -> Int {
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) else { return 0 }
+        let tomorrowStart = Calendar.current.startOfDay(for: tomorrow)
+        return viewModel.leaveEntries.filter { entry in
+            guard let start = entry.startDate, let end = entry.endDate else { return false }
+            return (start...end).contains(tomorrowStart)
+        }.count
+    }
+
+    private func getWeeklyLeaveCount() -> Int {
+        let today = Date()
+        let calendar = Calendar.current
+
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: today) else { return 0 }
+
+        return viewModel.leaveEntries.filter { entry in
+            guard let start = entry.startDate, let end = entry.endDate else { return false }
+            return weekInterval.intersects(DateInterval(start: start, end: end))
+        }.count
+    }
+
+    private func refreshData() async {
+        isRefreshing = true
+        viewModel.loadLeaveInfo()
+        isRefreshing = false
     }
 }
 
-struct LeaveEntryRow: View {
-    let entry: BambooLeaveInfo
-    let isOdd: Bool
-    @EnvironmentObject var accountSettings: AccountSettingsViewModel
+// MARK: - Stat Badge
+struct StatBadge: View {
+    let title: String
+    let count: Int
+    let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 12) {
-                // Avatar
-                if let urlString = entry.photoUrl, let url = URL(string: urlString), !accountSettings.apiKey.isEmpty {
-                    AuthenticatedAsyncImage(url: url, apiKey: accountSettings.apiKey)
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                } else {
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .frame(width: 48, height: 48)
-                        .foregroundColor(.gray)
+        VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(color.opacity(0.1))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Day Leave Card
+struct DayLeaveCard: View {
+    let date: Date
+    let entries: [BambooLeaveInfo]
+    let isToday: Bool
+    @StateObject private var localizationManager = LocalizationManager.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dayName)
+                        .font(.headline)
+                        .fontWeight(isToday ? .bold : .medium)
+                        .foregroundColor(isToday ? .blue : .primary)
+
+                    Text(dateString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.name)
-                        .font(.headline)
-                    Text(entry.type)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                if isToday {
+                    Text(localizationManager.localized(.leaveToday))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
                 }
 
                 Spacer()
 
-                // Off days badge (keep in main row)
-                if let duration = entry.leaveDuration {
-                    Text(String(format: "%d day%@", duration, duration > 1 ? "s" : ""))
-                        .font(.caption2)
-                        .padding(.horizontal,10)
-                        .padding(.vertical, 5)
-                        .background(Color.blue.opacity(0.15))
-                        .foregroundColor(.blue)
-                        .cornerRadius(6)
-                }
+                LeaveCountBadge(count: entries.count)
             }
-            // Date range on a separate line with extra padding
-            if let startDate = entry.startDate, let endDate = entry.endDate {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 14, weight: .medium))
-                    DateRangeView(startDate: startDate, endDate: endDate)
+
+            if entries.isEmpty {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
                         .font(.caption)
+                    Text(localizationManager.localized(.leaveAllPresent))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-                .padding(.horizontal, 4)
+                .padding()
+                .background(Color.green.opacity(0.05))
+                .cornerRadius(8)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(entries, id: \.id) { entry in
+                        ModernLeaveEntryRow(entry: entry)
+                    }
+                }
             }
         }
-        .padding(.vertical, 20)
-        .padding(.horizontal)
-        .background(isOdd ? Color(.systemGray6) : Color.clear)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(isToday ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 2)
+        )
+    }
+
+    private var dayName: String {
+        let formatter = DateFormatter()
+        if localizationManager.currentLanguage == "zh-Hans" {
+            formatter.dateFormat = "EEEE"
+            formatter.locale = Locale(identifier: "zh_CN")
+        } else {
+            formatter.dateFormat = "EEEE"
+            formatter.locale = Locale(identifier: "en_US")
+        }
+        return formatter.string(from: date)
+    }
+
+    private var dateString: String {
+        let formatter = DateFormatter()
+        if localizationManager.currentLanguage == "zh-Hans" {
+            formatter.dateFormat = "M月d日"
+            formatter.locale = Locale(identifier: "zh_CN")
+        } else {
+            formatter.dateFormat = "MMM d"
+            formatter.locale = Locale(identifier: "en_US")
+        }
+        return formatter.string(from: date)
     }
 }
 
-struct DateRangeView: View {
-    let startDate: Date
-    let endDate: Date
+// MARK: - Leave Count Badge
+struct LeaveCountBadge: View {
+    let count: Int
 
     var body: some View {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .medium
-        dateFormatter.timeStyle = .none
+        if count > 0 {
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(Color.orange)
+                .cornerRadius(10)
+        } else {
+            Circle()
+                .fill(Color.green)
+                .frame(width: 8, height: 8)
+        }
+    }
+}
 
-        return HStack(spacing: 4) {
-            Text(dateFormatter.string(from: startDate))
-                .font(.subheadline)
+// MARK: - Modern Leave Entry Row
+struct ModernLeaveEntryRow: View {
+    let entry: BambooLeaveInfo
 
-            if Calendar.current.startOfDay(for: startDate) != Calendar.current.startOfDay(for: endDate) {
-                Text("to")
+    var body: some View {
+        HStack(spacing: 12) {
+            // User Avatar
+            AvatarView(name: entry.name, photoUrl: entry.photoUrl, size: 36)
+                .overlay(
+                    Circle()
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.name)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .fontWeight(.medium)
 
-                Text(dateFormatter.string(from: endDate))
-                    .font(.subheadline)
+                HStack(spacing: 4) {
+                    LeaveTypeIcon(type: entry.type)
+
+                    Text(entry.type)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                if let duration = entry.leaveDuration {
+                    Text("\(duration)d")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(4)
+                }
+
+                if let startDate = entry.startDate {
+                    Text(startDate, style: .date)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
+    }
+}
 
+// MARK: - Leave Type Icon
+struct LeaveTypeIcon: View {
+    let type: String
+
+    var body: some View {
+        Group {
+            switch type.lowercased() {
+            case "vacation", "年假":
+                Image(systemName: "beach.umbrella.fill")
+                    .foregroundColor(.blue)
+            case "sick", "病假":
+                Image(systemName: "heart.fill")
+                    .foregroundColor(.red)
+            case "personal", "事假":
+                Image(systemName: "person.fill")
+                    .foregroundColor(.purple)
+            default:
+                Image(systemName: "calendar.circle.fill")
+                    .foregroundColor(.orange)
+            }
+        }
+        .font(.system(size: 12))
+        .frame(width: 16, height: 16)
     }
 }
 

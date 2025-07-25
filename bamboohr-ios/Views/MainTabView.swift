@@ -8,62 +8,53 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @StateObject private var userViewModel = UserViewModel(bambooHRService: BambooHRService.shared)
+    @StateObject private var timeEntryViewModel = TimeEntryViewModel(bambooHRService: BambooHRService.shared)
+    @StateObject private var leaveViewModel = LeaveViewModel(bambooHRService: BambooHRService.shared)
+    @StateObject private var accountSettingsViewModel = AccountSettingsViewModel(bambooHRService: BambooHRService.shared)
+    @StateObject private var localizationManager = LocalizationManager.shared
     @State private var selectedTab = 0
-
-    // Use injected service instance
-    private let bambooHRService: BambooHRService
-
-    // Create view models
-    private let userViewModel: UserViewModel
-    private let leaveViewModel: LeaveViewModel
-    private let timeEntryViewModel: TimeEntryViewModel
-    private let accountSettingsViewModel: AccountSettingsViewModel
-
-    init(bambooHRService: BambooHRService) {
-        self.bambooHRService = bambooHRService
-        userViewModel = UserViewModel(bambooHRService: bambooHRService)
-        leaveViewModel = LeaveViewModel(bambooHRService: bambooHRService)
-        timeEntryViewModel = TimeEntryViewModel(bambooHRService: bambooHRService)
-        accountSettingsViewModel = AccountSettingsViewModel(bambooHRService: bambooHRService)
-    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView(viewModel: userViewModel)
                 .tabItem {
-                    Label("Home", systemImage: "house")
+                    Image(systemName: selectedTab == 0 ? "house.fill" : "house")
+                    Text(localizationManager.localized(.tabHome))
                 }
                 .tag(0)
 
-            LeaveView(viewModel: leaveViewModel)
+            TimeEntryView(viewModel: timeEntryViewModel)
                 .tabItem {
-                    Label("Leave", systemImage: "calendar")
+                    Image(systemName: selectedTab == 1 ? "clock.fill" : "clock")
+                    Text(localizationManager.localized(.tabTime))
                 }
                 .tag(1)
 
-            TimeEntryView(viewModel: timeEntryViewModel)
+            LeaveView(viewModel: leaveViewModel)
                 .tabItem {
-                    Label("Time", systemImage: "clock")
+                    Image(systemName: selectedTab == 2 ? "calendar.badge.clock" : "calendar")
+                    Text(localizationManager.localized(.tabLeave))
                 }
                 .tag(2)
 
             SettingsView(viewModel: accountSettingsViewModel)
                 .tabItem {
-                    Label("Settings", systemImage: "gear")
+                    Image(systemName: selectedTab == 3 ? "gear.badge.fill" : "gear")
+                    Text(localizationManager.localized(.tabSettings))
                 }
                 .tag(3)
         }
+        .withToast()
         .onAppear {
             // Check if settings are configured
-            if KeychainManager.shared.loadAccountSettings() == nil {
-                // If not configured, switch to settings tab
-                selectedTab = 3
+            if !accountSettingsViewModel.hasValidSettings {
+                selectedTab = 3 // Switch to settings tab
             }
         }
     }
 }
 
 #Preview {
-    let service = BambooHRService()
-    MainTabView(bambooHRService: service)
+    MainTabView()
 }

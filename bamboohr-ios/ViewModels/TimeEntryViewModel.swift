@@ -12,13 +12,20 @@ import SwiftUI
 class TimeEntryViewModel: ObservableObject {
     @Published var timeEntries: [TimeEntry] = []
     @Published var projects: [Project] = []
-    @Published var selectedDate = Date()
+    @Published var selectedDate = Date() {
+        didSet {
+            if selectedDate != oldValue {
+                loadTimeEntries()
+            }
+        }
+    }
     @Published var hours: Double = 8.0
     @Published var selectedProject: Project?
     @Published var selectedTask: Task?
     @Published var note: String = ""
     @Published var isLoading = false
     @Published var isSubmitting = false
+    @Published var isLoadingEntries = false
     @Published var error: String?
     @Published var successMessage: String?
 
@@ -34,26 +41,79 @@ class TimeEntryViewModel: ObservableObject {
                 self?.selectedTask = nil
             }
             .store(in: &cancellables)
+
+        // Load initial data
+        loadProjects()
+        loadTimeEntries()
     }
 
     func loadProjects() {
         isLoading = true
-        error = nil
 
         bambooHRService.fetchProjects()
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     self?.isLoading = false
-
                     if case .failure(let error) = completion {
-                        self?.error = error.localizedDescription
+                        let localizationManager = LocalizationManager.shared
+                        let errorMessage = localizationManager.localized(.projectsLoadFailed)
+                        self?.error = errorMessage
+                        ToastManager.shared.error(errorMessage)
+                        print("DEBUG: Failed to load projects: \(error.localizedDescription)")
                     }
                 },
-                receiveValue: { [weak self] projects in
-                    self?.projects = projects.filter { $0.isActive }
-                    if let firstProject = projects.first {
-                        self?.selectedProject = firstProject
+                receiveValue: { [weak self] (projects: [Project]) in
+                    self?.projects = projects
+                    let localizationManager = LocalizationManager.shared
+                    ToastManager.shared.success(localizationManager.localized(.projectsLoaded))
+                }
+            )
+            .store(in: &cancellables)
+    }
+
+    func loadTimeEntries() {
+        isLoadingEntries = true
+
+        bambooHRService.fetchTimeEntries(for: selectedDate)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
+                    self?.isLoadingEntries = false
+                    if case .failure(let error) = completion {
+                        print("DEBUG: Failed to load time entries for \(self?.selectedDate ?? Date()): \(error.localizedDescription)")
+
+                        // Only show error toast for authentication or network errors
+                        // Don't show error for 404 (time tracking might not be enabled)
+                        switch error {
+                        case .authenticationError:
+                            let localizationManager = LocalizationManager.shared
+                            let errorMessage = localizationManager.localized(.authenticationError)
+                            ToastManager.shared.error(errorMessage)
+                        case .networkError(_):
+                            let localizationManager = LocalizationManager.shared
+                            let errorMessage = localizationManager.localized(.networkError)
+                            ToastManager.shared.error(errorMessage)
+                        default:
+                            // For other errors (like 404), just log them without showing toast
+                            print("DEBUG: Time tracking might not be enabled for this account")
+                        }
+                    }
+                },
+                receiveValue: { [weak self] (entries: [TimeEntry]) in
+                    // Sort entries in reverse order to match Node.js implementation
+                    // This shows the most recent entries first
+                    self?.timeEntries = entries.reversed()
+                    print("DEBUG: Loaded \(entries.count) time entries for \(self?.selectedDate ?? Date())")
+
+                    // Print details of loaded entries for debugging
+                    for entry in entries {
+                        print("DEBUG: Entry - ID: \(entry.id), Hours: \(entry.hours), Project: \(entry.projectName ?? "None"), Task: \(entry.taskName ?? "None")")
+                    }
+
+                    let localizationManager = LocalizationManager.shared
+                    if !entries.isEmpty {
+                        ToastManager.shared.success(localizationManager.localized(.timeRecordsLoaded))
                     }
                 }
             )
@@ -61,46 +121,50 @@ class TimeEntryViewModel: ObservableObject {
     }
 
     func submitTimeEntry() {
-        guard let selectedProject = selectedProject else {
-            error = "Please select a project"
+        guard let project = selectedProject else {
+            let localizationManager = LocalizationManager.shared
+            ToastManager.shared.error(localizationManager.localized(.timeSelectProject))
             return
         }
 
         isSubmitting = true
-        error = nil
-        successMessage = nil
-        
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 
-        // Create a new time entry
-        let timeEntry = TimeEntry(
+        let entry = TimeEntry(
+            id: UUID().uuidString,
             employeeId: KeychainManager.shared.loadAccountSettings()?.employeeId ?? "",
             date: selectedDate,
             hours: hours,
-            projectId: selectedProject.id,
-            projectName: selectedProject.name,
+            projectId: project.id,
+            projectName: project.name,
             taskId: selectedTask?.id,
             taskName: selectedTask?.name,
-            note: note.isEmpty ? nil : note
+            note: note
         )
 
-        bambooHRService.submitTimeEntry(timeEntry)
+        bambooHRService.submitTimeEntry(entry)
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     self?.isSubmitting = false
-
                     if case .failure(let error) = completion {
-                        self?.error = error.localizedDescription
+                        print("DEBUG: Failed to submit time entry: \(error.localizedDescription)")
+                        let localizationManager = LocalizationManager.shared
+                        ToastManager.shared.error(localizationManager.localized(.projectsLoadFailed))
                     }
                 },
-                receiveValue: { [weak self] success in
-                    if success {
-                        self?.successMessage = "Time entry submitted successfully"
-                        self?.resetForm()
-                    } else {
-                        self?.error = "Failed to submit time entry"
-                    }
+                receiveValue: { [weak self] (_: Bool) in
+                    self?.isSubmitting = false
+                    // Clear the form
+                    self?.hours = 1.0
+                    self?.selectedProject = nil
+                    self?.selectedTask = nil
+                    self?.note = ""
+
+                    let localizationManager = LocalizationManager.shared
+                    ToastManager.shared.success(localizationManager.localized(.timeSubmittedMessage))
+
+                    // Reload time entries for the current date
+                    self?.loadTimeEntries()
                 }
             )
             .store(in: &cancellables)
@@ -111,5 +175,13 @@ class TimeEntryViewModel: ObservableObject {
         note = ""
         selectedDate = Date()
         selectedTask = nil
+    }
+
+    var totalHoursForDate: Double {
+        timeEntries.reduce(0) { $0 + $1.hours }
+    }
+
+    var formattedTotalHours: String {
+        String(format: "%.1f", totalHoursForDate)
     }
 }
