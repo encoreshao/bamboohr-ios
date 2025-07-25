@@ -28,8 +28,10 @@ struct HomeView: View {
                         noDataView
                     }
                 }
-                .padding()
+                .padding(.horizontal) // 只保留水平padding
+                .padding(.bottom) // 只保留底部padding
             }
+            .contentMargins(.top, 0) // 移除顶部内容边距
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -156,6 +158,13 @@ struct HomeView: View {
                         Text(user.department)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                        
+                        Image(systemName: "map.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(user.location!)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
 
@@ -223,15 +232,15 @@ struct HomeView: View {
             ], spacing: 12) {
                 StatCard(
                     title: localizationManager.localized(.homeWeeklyWork),
-                    value: calculateWeeklyHours(),
+                    value: String(format: "%.1f", viewModel.weeklyHours),
                     icon: "clock.fill",
                     color: .blue,
-                    subtitle: weeklyHoursSubtitle
+                    subtitle: getWeeklyHoursSubtitle(worked: viewModel.weeklyHours)
                 )
 
                 StatCard(
                     title: localizationManager.localized(.homeRemainingLeave),
-                    value: calculateRemainingLeave(),
+                    value: "\(viewModel.remainingLeavedays)",
                     icon: "beach.umbrella",
                     color: .orange,
                     subtitle: localizationManager.localized(.homeLeaveBalance)
@@ -239,7 +248,7 @@ struct HomeView: View {
 
                 StatCard(
                     title: localizationManager.localized(.homeMonthlyProjects),
-                    value: calculateActiveProjects(),
+                    value: "\(viewModel.totalProjects)",
                     icon: "folder.fill",
                     color: .purple,
                     subtitle: localizationManager.localized(.homeInProgress)
@@ -247,7 +256,7 @@ struct HomeView: View {
 
                 StatCard(
                     title: localizationManager.localized(.homeTeamSize),
-                    value: calculateTeamSize(department: user.department),
+                    value: "\(viewModel.totalEmployees)",
                     icon: "person.3.fill",
                     color: .green,
                     subtitle: localizationManager.localized(.homeDepartmentMembers)
@@ -281,26 +290,24 @@ struct HomeView: View {
                 QuickInfoRow(
                     icon: "clock.arrow.circlepath",
                     title: localizationManager.localized(.homeWorkStatus),
-                    value: localizationManager.localized(.homeWorkStatusActive),
-                    valueColor: .green,
-                    description: localizationManager.localized(.homeWorkStatusStarted)
+                    value: viewModel.isOnLeaveToday ?
+                        getLocalizedText("休假中", "On Leave") :
+                        localizationManager.localized(.homeWorkStatusActive),
+                    valueColor: viewModel.isOnLeaveToday ? .orange : .green,
+                    description: viewModel.isOnLeaveToday ?
+                        getLocalizedText("今日休假", "On leave today") :
+                        localizationManager.localized(.homeWorkStatusStarted)
                 )
 
                 QuickInfoRow(
                     icon: "person.2.badge.minus",
                     title: localizationManager.localized(.homeOnLeave),
-                    value: "\(getTodayLeaveCount()) \(localizationManager.localized(.homePeople))",
+                    value: "\(viewModel.todayLeaveCount) \(localizationManager.localized(.homePeople))",
                     valueColor: .orange,
                     description: localizationManager.localized(.homeViewDetails)
                 )
 
-                QuickInfoRow(
-                    icon: "checkmark.circle",
-                    title: localizationManager.localized(.homeTodayTasks),
-                    value: "6/8",
-                    valueColor: .blue,
-                    description: localizationManager.localized(.homeTasksCompleted)
-                )
+                // 删除今日任务行，因为没有真实数据
             }
         }
         .padding()
@@ -326,51 +333,7 @@ struct HomeView: View {
         }
     }
 
-    private var currentTimeIcon: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12:
-            return "sun.max.fill"
-        case 12..<17:
-            return "sun.max.fill"
-        case 17..<22:
-            return "moon.fill"
-        default:
-            return "moon.stars.fill"
-        }
-    }
-
-    private var todayDateString: String {
-        let formatter = DateFormatter()
-        if localizationManager.currentLanguage == "zh-Hans" {
-            formatter.dateFormat = "M月d日 EEEE"
-            formatter.locale = Locale(identifier: "zh_CN")
-        } else {
-            formatter.dateFormat = "MMM d, EEEE"
-            formatter.locale = Locale(identifier: "en_US")
-        }
-        return formatter.string(from: Date())
-    }
-
-    private func getLocalizedText(_ chinese: String, _ english: String) -> String {
-        return localizationManager.currentLanguage == "zh-Hans" ? chinese : english
-    }
-
-    // MARK: - Real Data Calculations
-    private func calculateWeeklyHours() -> String {
-        // In a real app, this would fetch from time entries
-        let currentHour = Calendar.current.component(.hour, from: Date())
-        let dayOfWeek = Calendar.current.component(.weekday, from: Date())
-
-        // Simulate worked hours based on current time and day
-        let dailyHours = max(0, min(8, currentHour - 9))
-        let weeklyHours = Double(dailyHours) + Double((dayOfWeek - 2) * 8)
-
-        return String(format: "%.1f", max(0, weeklyHours))
-    }
-
-    private var weeklyHoursSubtitle: String {
-        let worked = Double(calculateWeeklyHours()) ?? 0
+    private func getWeeklyHoursSubtitle(worked: Double) -> String {
         let target = 40.0
         let remaining = max(0, target - worked)
 
@@ -381,45 +344,28 @@ struct HomeView: View {
         }
     }
 
-    private func calculateRemainingLeave() -> String {
-        // In a real app, this would fetch from user's leave balance
-        let startOfYear = Calendar.current.dateInterval(of: .year, for: Date())?.start ?? Date()
-        let daysSinceStart = Calendar.current.dateComponents([.day], from: startOfYear, to: Date()).day ?? 0
-
-        // Simulate leave usage (assume 20 days annual leave, some used)
-        let usedDays = min(20, daysSinceStart / 15) // Rough calculation
-        let remaining = max(0, 20 - usedDays)
-
-        return "\(remaining)"
+    private var todayDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: Date())
     }
 
-    private func calculateActiveProjects() -> String {
-        // In a real app, this would fetch from projects API
-        // Simulate based on user department
-        return "3"
-    }
-
-    private func calculateTeamSize(department: String) -> String {
-        // Simulate team size based on department
-        switch department.lowercased() {
-        case "engineering", "开发":
-            return "12"
-        case "design", "设计":
-            return "8"
-        case "marketing", "市场":
-            return "15"
-        case "sales", "销售":
-            return "20"
+    private var currentTimeIcon: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 6..<12:
+            return "sun.and.horizon"
+        case 12..<18:
+            return "sun.max"
+        case 18..<21:
+            return "sun.haze"
         default:
-            return "10"
+            return "moon.stars"
         }
     }
 
-    private func getTodayLeaveCount() -> Int {
-        // In a real app, this would fetch from leave API
-        // Simulate leave count
-        let dayOfWeek = Calendar.current.component(.weekday, from: Date())
-        return dayOfWeek == 1 || dayOfWeek == 7 ? 0 : Int.random(in: 0...3)
+    private func getLocalizedText(_ chinese: String, _ english: String) -> String {
+        return localizationManager.currentLanguage == "zh-Hans" ? chinese : english
     }
 
     private func refreshData() async {

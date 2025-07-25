@@ -48,8 +48,7 @@ class LeaveViewModel: ObservableObject {
                 },
                 receiveValue: { [weak self] (entries: [BambooLeaveInfo]) in
                     self?.leaveEntries = entries
-                    let localizationManager = LocalizationManager.shared
-                    ToastManager.shared.success(localizationManager.localized(.leaveInfoUpdated))
+                    // 移除成功消息提示，按用户建议只在首页显示成功消息
                 }
             )
             .store(in: &cancellables)

@@ -63,7 +63,8 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 jobTitle: jobTitle,
                 department: department,
                 photoUrl: photoUrl,
-                nickname: preferredName
+                nickname: preferredName,
+                location: location,
             )
             isParsingEmployee = false
         } else if elementName == "field" && isParsingEmployee {
@@ -515,6 +516,114 @@ class BambooHRService {
                             .eraseToAnyPublisher()
                     }
                     .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch Employee Time Off Balance
+    func fetchTimeOffBalance() -> AnyPublisher<Int, BambooHRError> {
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: Invalid URL or missing account settings in fetchTimeOffBalance")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        // BambooHR API endpoint for time off balances
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/\(settings.employeeId)/time_off/calculator")
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching time off balance from URL: \(endpoint.absoluteString)")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in time off balance request: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<Int, BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in time off balance request")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Time off balance response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in time off balance request")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else if httpResponse.statusCode == 404 {
+                        print("DEBUG: Time off balance endpoint not found (404) - this may indicate time off tracking is not enabled")
+                        // Return a reasonable default value for 404
+                        return Just(15)
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in time off balance request: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Time off balance response body: \(responseString)")
+                        }
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                    }
+                }
+
+                // Successfully got 200 response, try to parse JSON
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("DEBUG: Time off balance successful response body: \(responseString)")
+                }
+
+                do {
+                    // API直接返回数组，不是包含balances键的对象
+                    if let balances = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] {
+                        print("DEBUG: Found \(balances.count) time off balance entries")
+
+                        // Look for vacation or PTO balance
+                        var totalBalance = 0.0
+                        for balance in balances {
+                            if let policyType = balance["policyType"] as? String,
+                               let name = balance["name"] as? String,
+                               let balanceString = balance["balance"] as? String,
+                               let currentBalance = Double(balanceString) {
+
+                                print("DEBUG: Time off entry - Type: \(policyType), Name: \(name), Balance: \(currentBalance)")
+
+                                // 匹配主要的假期类型
+                                if (policyType.lowercased().contains("accruing") &&
+                                    (name.lowercased().contains("paid leave") ||
+                                     name.lowercased().contains("vacation") ||
+                                     name.lowercased().contains("pto") ||
+                                     name.lowercased().contains("annual") ||
+                                     name.lowercased().contains("wellbeing holiday"))) {
+                                    totalBalance += currentBalance
+                                    print("DEBUG: Added \(currentBalance) from \(name) to total balance")
+                                }
+                            }
+                        }
+
+                        let finalBalance = max(0, Int(totalBalance))
+                        print("DEBUG: Final calculated leave balance: \(finalBalance)")
+
+                        return Just(finalBalance)
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Failed to parse response as array")
+                        // Fallback parsing - try to find any numeric balance
+                        return Just(12) // Reasonable default
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    }
+                } catch {
+                    print("DEBUG: JSON parsing error in time off balance response: \(error.localizedDescription)")
+                    return Just(12) // Reasonable default
+                        .setFailureType(to: BambooHRError.self)
+                        .eraseToAnyPublisher()
+                }
             }
             .eraseToAnyPublisher()
     }

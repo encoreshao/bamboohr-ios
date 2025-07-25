@@ -11,6 +11,7 @@ struct TimeEntryView: View {
     @ObservedObject var viewModel: TimeEntryViewModel
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var showingDatePicker = false
+    @FocusState private var isTextFieldFocused: Bool // 添加键盘焦点状态管理
 
     var body: some View {
         NavigationView {
@@ -21,9 +22,14 @@ struct TimeEntryView: View {
 
                     // Time entry form
                     timeEntryForm
+
+                    // 添加周柱状图
+                    weeklyTimeChart
                 }
-                .padding()
+                .padding(.horizontal) // 减少顶部padding
+                .padding(.bottom) // 只保留底部padding
             }
+            .contentMargins(.top, 0) // 移除顶部内容边距
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -66,6 +72,16 @@ struct TimeEntryView: View {
                     .disabled(viewModel.isLoading || viewModel.isSubmitting)
                 }
             }
+            .onTapGesture {
+                // 点击空白处收起键盘
+                hideKeyboard()
+            }
+            .gesture(
+                // 拖拽手势也收起键盘
+                DragGesture().onChanged { _ in
+                    hideKeyboard()
+                }
+            )
         }
         .onAppear {
             if viewModel.projects.isEmpty && !viewModel.isLoading {
@@ -73,6 +89,12 @@ struct TimeEntryView: View {
             }
             viewModel.loadTimeEntries()
         }
+    }
+
+    // 键盘收起函数
+    private func hideKeyboard() {
+        isTextFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     // MARK: - Records Section
@@ -229,25 +251,31 @@ struct TimeEntryView: View {
                     Spacer()
 
                     HStack(spacing: 8) {
-                        Button("-") {
+                        Button {
                             if viewModel.hours > 0.5 {
                                 viewModel.hours -= 0.5
                             }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundColor(viewModel.hours <= 0.5 ? .gray : .red)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderless)
                         .disabled(viewModel.hours <= 0.5)
 
-                        Text("\(viewModel.hours, specifier: "%.1f") \(localizationManager.localized(.homeHours))")
+                        Text("\(String(format: "%.1f", viewModel.hours)) \(localizationManager.localized(.homeHours))")
                             .font(.title2)
                             .fontWeight(.semibold)
                             .frame(minWidth: 100)
 
-                        Button("+") {
+                        Button {
                             if viewModel.hours < 24.0 {
                                 viewModel.hours += 0.5
                             }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(viewModel.hours >= 24.0 ? .gray : .green)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderless)
                         .disabled(viewModel.hours >= 24.0)
                     }
                 }
@@ -365,6 +393,7 @@ struct TimeEntryView: View {
                 .foregroundColor(.primary)
 
             TextEditor(text: $viewModel.note)
+                .focused($isTextFieldFocused) // 添加焦点状态绑定
                 .frame(minHeight: 80)
                 .padding(8)
                 .background(Color(.systemGray6))
@@ -452,7 +481,7 @@ struct TimeEntryRowView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text("\(entry.hours, specifier: "%.1f")h")
+                Text("\(String(format: "%.1f", entry.hours))h")
                     .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(.blue)
@@ -471,6 +500,205 @@ struct TimeEntryRowView: View {
         .background(Color(.systemGray6))
         .cornerRadius(8)
     }
+}
+
+// MARK: - 周柱状图组件
+extension TimeEntryView {
+    private var weeklyTimeChart: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("本周工作时长", systemImage: "chart.bar.fill")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            WeeklyTimeChartView(selectedDate: viewModel.selectedDate, viewModel: viewModel)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+}
+
+// MARK: - 周柱状图具体实现
+struct WeeklyTimeChartView: View {
+    let selectedDate: Date
+    @ObservedObject var viewModel: TimeEntryViewModel
+    @State private var weeklyData: [DayTimeData] = []
+    @State private var showingTooltip: String? = nil
+    @State private var tooltipPosition: CGPoint = .zero
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // 图表
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(weeklyData, id: \.date) { dayData in
+                    VStack(spacing: 4) {
+                        // 柱状条
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(dayData.isToday ? Color.blue : Color.blue.opacity(0.7))
+                            .frame(width: 35, height: max(4, dayData.height))
+                            .overlay(
+                                // 点击区域
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { location in
+                                        showTooltip(for: dayData, at: location)
+                                    }
+                                    .gesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { value in
+                                                showTooltip(for: dayData, at: value.location)
+                                            }
+                                            .onEnded { _ in
+                                                hideTooltip()
+                                            }
+                                    )
+                            )
+
+                        // 日期标签
+                        Text(dayData.dayLabel)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .fontWeight(dayData.isToday ? .bold : .regular)
+                    }
+                }
+            }
+            .frame(height: 120)
+
+            // 底部说明
+            HStack {
+                Text("0h")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("最高: \(String(format: "%.1f", maxHours))h")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .overlay(
+            // Tooltip
+            tooltipView
+        )
+        .onAppear {
+            loadWeeklyData()
+        }
+        .onChange(of: selectedDate) { _, _ in
+            loadWeeklyData()
+        }
+    }
+
+    // Tooltip视图
+    @ViewBuilder
+    private var tooltipView: some View {
+        if let tooltipText = showingTooltip {
+            Text(tooltipText)
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.8))
+                .foregroundColor(.white)
+                .cornerRadius(6)
+                .position(tooltipPosition)
+                .zIndex(1)
+        }
+    }
+
+    // 显示tooltip
+    private func showTooltip(for dayData: DayTimeData, at location: CGPoint) {
+        showingTooltip = "\(dayData.dayLabel): \(String(format: "%.1f", dayData.hours))小时"
+        tooltipPosition = CGPoint(x: location.x, y: location.y - 30)
+
+        // 自动隐藏
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            hideTooltip()
+        }
+    }
+
+    // 隐藏tooltip
+    private func hideTooltip() {
+        showingTooltip = nil
+    }
+
+    // 计算最大小时数
+    private var maxHours: Double {
+        weeklyData.map { $0.hours }.max() ?? 8.0
+    }
+
+    // 加载周数据
+    private func loadWeeklyData() {
+        let calendar = Calendar.current
+        let today = Date()
+
+        // 获取本周的开始日期(周一)
+        let weekday = calendar.component(.weekday, from: selectedDate)
+        // let /*daysFromMonday*/ = (weekday == 1) ? 6 : weekday - 2 // 周日是1，周一是2
+        let daysFromMonday = weekday;
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: selectedDate) else { return }
+
+        var data: [DayTimeData] = []
+
+        for i in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: i, to: startOfWeek) else { continue }
+
+            // 模拟数据 - 实际应该从viewModel或API获取
+            let hours = generateMockHours(for: date)
+            let isToday = calendar.isDate(date, inSameDayAs: today)
+
+            let dayData = DayTimeData(
+                date: date,
+                hours: hours,
+                dayLabel: formatDayLabel(date),
+                isToday: isToday,
+                height: calculateHeight(hours: hours)
+            )
+
+            data.append(dayData)
+        }
+
+        weeklyData = data
+    }
+
+    // 生成模拟数据
+    private func generateMockHours(for date: Date) -> Double {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+
+        // 周末较少工作时间
+        if weekday == 1 || weekday == 7 { // 周日或周六
+            return Double.random(in: 0...2)
+        } else {
+            // 工作日
+            return Double.random(in: 6...9)
+        }
+    }
+
+    // 格式化日期标签
+    private func formatDayLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E" // 周几的简写
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter.string(from: date)
+    }
+
+    // 计算柱状图高度
+    private func calculateHeight(hours: Double) -> CGFloat {
+        let maxHeight: CGFloat = 100
+        let maxHours = self.maxHours
+        return CGFloat(hours / maxHours) * maxHeight
+    }
+}
+
+// MARK: - 周数据模型
+struct DayTimeData {
+    let date: Date
+    let hours: Double
+    let dayLabel: String
+    let isToday: Bool
+    let height: CGFloat
 }
 
 #Preview {

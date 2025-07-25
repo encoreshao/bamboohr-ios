@@ -311,7 +311,7 @@ class LocalizationManager: ObservableObject {
                 "tab_settings": "设置",
 
                 // Home screen
-                "home_title": "仪表盘",
+                "home_title": "主页",
                 "home_greeting_morning": "早上好",
                 "home_greeting_afternoon": "下午好",
                 "home_greeting_evening": "晚上好",

@@ -63,31 +63,16 @@ struct LeaveView: View {
                 LazyVStack(spacing: 16) {
                     if viewModel.isLoading {
                         loadingView
-                    } else if viewModel.error != nil {
-                        errorView
+                    } else if let error = viewModel.error {
+                        errorView(message: error)
                     } else {
-                        // Summary header
-                        summaryHeaderView
-
-                        // Daily leave overview
-                        ForEach(0..<7) { offset in
-                            let day = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
-                            let entries = viewModel.leaveEntries.filter { entry in
-                                guard let start = entry.startDate, let end = entry.endDate else { return false }
-                                let dayStart = Calendar.current.startOfDay(for: day)
-                                return (start...end).contains(dayStart)
-                            }
-
-                            DayLeaveCard(
-                                date: day,
-                                entries: entries,
-                                isToday: Calendar.current.isDateInToday(day)
-                            )
-                        }
+                        leaveEntriesSection
                     }
                 }
-                .padding()
+                .padding(.horizontal) // 只保留水平padding
+                .padding(.bottom) // 只保留底部padding
             }
+            .contentMargins(.top, 0) // 移除顶部内容边距
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -135,7 +120,7 @@ struct LeaveView: View {
     }
 
     // MARK: - Error View
-    private var errorView: some View {
+    private func errorView(message: String) -> some View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 50))
@@ -145,7 +130,7 @@ struct LeaveView: View {
                 .font(.title2)
                 .fontWeight(.bold)
 
-            Text(localizationManager.localized(.networkError))
+            Text(message)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .padding(.horizontal)
@@ -238,6 +223,29 @@ struct LeaveView: View {
         isRefreshing = true
         viewModel.loadLeaveInfo()
         isRefreshing = false
+    }
+
+    private var leaveEntriesSection: some View {
+        VStack(spacing: 16) {
+            // Summary header
+            summaryHeaderView
+
+            // Daily leave overview
+            ForEach(0..<7) { offset in
+                let day = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
+                let entries = viewModel.leaveEntries.filter { entry in
+                    guard let start = entry.startDate, let end = entry.endDate else { return false }
+                    let dayStart = Calendar.current.startOfDay(for: day)
+                    return (start...end).contains(dayStart)
+                }
+
+                DayLeaveCard(
+                    date: day,
+                    entries: entries,
+                    isToday: Calendar.current.isDateInToday(day)
+                )
+            }
+        }
     }
 }
 

@@ -15,7 +15,11 @@ class TimeEntryViewModel: ObservableObject {
     @Published var selectedDate = Date() {
         didSet {
             if selectedDate != oldValue {
-                loadTimeEntries()
+                print("DEBUG: Selected date changed from \(oldValue) to \(selectedDate)")
+                // 延迟一点时间确保UI更新完成后再加载数据
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.loadTimeEntries()
+                }
             }
         }
     }
@@ -65,15 +69,23 @@ class TimeEntryViewModel: ObservableObject {
                 },
                 receiveValue: { [weak self] (projects: [Project]) in
                     self?.projects = projects
-                    let localizationManager = LocalizationManager.shared
-                    ToastManager.shared.success(localizationManager.localized(.projectsLoaded))
+                    // 移除成功消息提示，按用户建议只在首页显示成功消息
                 }
             )
             .store(in: &cancellables)
     }
 
     func loadTimeEntries() {
+        // 防止重复加载
+        guard !isLoadingEntries else {
+            print("DEBUG: Already loading time entries, skipping duplicate request")
+            return
+        }
+
         isLoadingEntries = true
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        print("DEBUG: Loading time entries for date: \(dateFormatter.string(from: selectedDate))")
 
         bambooHRService.fetchTimeEntries(for: selectedDate)
             .receive(on: DispatchQueue.main)
@@ -101,20 +113,23 @@ class TimeEntryViewModel: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] (entries: [TimeEntry]) in
+                    guard let self = self else { return }
+
+                    // 确保这是当前选择日期的数据
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateStyle = .medium
+                    print("DEBUG: Received \(entries.count) time entries for \(dateFormatter.string(from: self.selectedDate))")
+
                     // Sort entries in reverse order to match Node.js implementation
                     // This shows the most recent entries first
-                    self?.timeEntries = entries.reversed()
-                    print("DEBUG: Loaded \(entries.count) time entries for \(self?.selectedDate ?? Date())")
+                    self.timeEntries = entries.reversed()
 
                     // Print details of loaded entries for debugging
                     for entry in entries {
-                        print("DEBUG: Entry - ID: \(entry.id), Hours: \(entry.hours), Project: \(entry.projectName ?? "None"), Task: \(entry.taskName ?? "None")")
+                        print("DEBUG: Entry - ID: \(entry.id), Hours: \(entry.hours), Project: \(entry.projectName ?? "None"), Task: \(entry.taskName ?? "None"), Date: \(entry.date)")
                     }
 
-                    let localizationManager = LocalizationManager.shared
-                    if !entries.isEmpty {
-                        ToastManager.shared.success(localizationManager.localized(.timeRecordsLoaded))
-                    }
+                    // 移除成功消息提示，按用户建议只在首页显示成功消息
                 }
             )
             .store(in: &cancellables)

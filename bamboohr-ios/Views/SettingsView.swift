@@ -16,7 +16,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(spacing: 20) {
+                VStack(spacing: 20) {
                     // Connection status section
                     connectionStatusSection
 
@@ -29,8 +29,10 @@ struct SettingsView: View {
                     // App information section
                     appInfoSection
                 }
-                .padding()
+                .padding(.horizontal) // 只保留水平padding
+                .padding(.bottom) // 只保留底部padding
             }
+            .contentMargins(.top, 0) // 移除顶部内容边距
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
