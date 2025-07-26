@@ -15,11 +15,12 @@ class TimeEntryViewModel: ObservableObject {
     @Published var selectedDate = Date() {
         didSet {
             if selectedDate != oldValue {
-                print("DEBUG: Selected date changed from \(oldValue) to \(selectedDate)")
-                // 延迟一点时间确保UI更新完成后再加载数据
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.loadTimeEntries()
-                }
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                print("DEBUG: ✅ Selected date changed from \(formatter.string(from: oldValue)) to \(formatter.string(from: selectedDate))")
+
+                // 立即加载新日期的时间记录
+                loadTimeEntries()
             }
         }
     }
@@ -85,7 +86,7 @@ class TimeEntryViewModel: ObservableObject {
         isLoadingEntries = true
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .medium
-        print("DEBUG: Loading time entries for date: \(dateFormatter.string(from: selectedDate))")
+        print("DEBUG: 🔄 Loading time entries for date: \(dateFormatter.string(from: selectedDate))")
 
         bambooHRService.fetchTimeEntries(for: selectedDate)
             .receive(on: DispatchQueue.main)
@@ -93,7 +94,7 @@ class TimeEntryViewModel: ObservableObject {
                 receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     self?.isLoadingEntries = false
                     if case .failure(let error) = completion {
-                        print("DEBUG: Failed to load time entries for \(self?.selectedDate ?? Date()): \(error.localizedDescription)")
+                        print("DEBUG: ❌ Failed to load time entries for \(self?.selectedDate ?? Date()): \(error.localizedDescription)")
 
                         // Only show error toast for authentication or network errors
                         // Don't show error for 404 (time tracking might not be enabled)
@@ -118,11 +119,13 @@ class TimeEntryViewModel: ObservableObject {
                     // 确保这是当前选择日期的数据
                     let dateFormatter = DateFormatter()
                     dateFormatter.dateStyle = .medium
-                    print("DEBUG: Received \(entries.count) time entries for \(dateFormatter.string(from: self.selectedDate))")
+                    print("DEBUG: ✅ Received \(entries.count) time entries for \(dateFormatter.string(from: self.selectedDate))")
 
                     // Sort entries in reverse order to match Node.js implementation
                     // This shows the most recent entries first
                     self.timeEntries = entries.reversed()
+
+                    print("DEBUG: 📋 Total hours for \(dateFormatter.string(from: self.selectedDate)): \(self.formattedTotalHours)")
 
                     // Print details of loaded entries for debugging
                     for entry in entries {
@@ -196,7 +199,11 @@ class TimeEntryViewModel: ObservableObject {
         timeEntries.reduce(0) { $0 + $1.hours }
     }
 
+    // MARK: - Computed Properties
     var formattedTotalHours: String {
-        String(format: "%.1f", totalHoursForDate)
+        let total = timeEntries.reduce(0.0) { $0 + $1.hours }
+        return String(format: "%.1f", total)
     }
+
+    // MARK: - Data Loading Methods
 }

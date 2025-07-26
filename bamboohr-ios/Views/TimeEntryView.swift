@@ -133,27 +133,46 @@ struct TimeEntryView: View {
                 }
             }
 
-            if viewModel.timeEntries.isEmpty && !viewModel.isLoadingEntries {
-                HStack {
-                    Image(systemName: "calendar.badge.exclamationmark")
-                        .foregroundColor(.orange)
-                        .font(.caption)
-                    Text(localizationManager.localized(.timeNoRecords))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-            } else {
-                LazyVStack(spacing: 6) {
-                    ForEach(viewModel.timeEntries, id: \.id) { entry in
-                        TimeEntryRowView(entry: entry)
+            // 时间记录列表 - 添加加载状态和动画
+            Group {
+                if viewModel.isLoadingEntries {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("加载中...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .frame(minHeight: 60)
+                } else if viewModel.timeEntries.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "clock.badge.xmark")
+                            .font(.system(size: 32))
+                            .foregroundColor(.gray)
+
+                        Text(localizationManager.localized(.timeNoRecords))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .background(Color(.systemGray6).opacity(0.5))
+                    .cornerRadius(8)
+                } else {
+                    LazyVStack(spacing: 6) {
+                        ForEach(viewModel.timeEntries, id: \.id) { entry in
+                            TimeEntryRowView(entry: entry)
+                                .transition(.slide.combined(with: .opacity))
+                        }
                     }
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: viewModel.timeEntries.count)
+            .animation(.easeInOut(duration: 0.3), value: viewModel.isLoadingEntries)
         }
         .padding()
         .background(
@@ -201,9 +220,22 @@ struct TimeEntryView: View {
 
     private var dateSelectionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(localizationManager.localized(.timeSelectDate), systemImage: "calendar")
-                .font(.headline)
-                .foregroundColor(.primary)
+            HStack {
+                Label(localizationManager.localized(.timeSelectDate), systemImage: "calendar")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                // 添加一个视觉指示器显示选择的日期
+                Text(formattedDate)
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+            }
 
             Button(action: {
                 withAnimation(.spring()) {
@@ -225,13 +257,47 @@ struct TimeEntryView: View {
             }
 
             if showingDatePicker {
-                DatePicker(
-                    localizationManager.localized(.timeSelectDate),
-                    selection: $viewModel.selectedDate,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(GraphicalDatePickerStyle())
-                .labelsHidden()
+                VStack(spacing: 12) {
+                    DatePicker(
+                        localizationManager.localized(.timeSelectDate),
+                        selection: $viewModel.selectedDate,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(GraphicalDatePickerStyle())
+                    .labelsHidden()
+                    .onChange(of: viewModel.selectedDate) { oldValue, newValue in
+                        print("DEBUG: Date picker changed from \(oldValue) to \(newValue)")
+                        // 选择日期后自动关闭picker
+                        withAnimation(.spring()) {
+                            showingDatePicker = false
+                        }
+                    }
+
+                    // 快速日期选择按钮
+                    HStack(spacing: 8) {
+                        Button("昨天") {
+                            if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
+                                viewModel.selectedDate = yesterday
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.caption)
+
+                        Button("今天") {
+                            viewModel.selectedDate = Date()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .font(.caption)
+
+                        Button("明天") {
+                            if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
+                                viewModel.selectedDate = tomorrow
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.caption)
+                    }
+                }
                 .transition(.opacity.combined(with: .scale))
             }
         }

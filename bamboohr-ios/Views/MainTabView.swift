@@ -40,7 +40,7 @@ struct MainTabView: View {
 
             SettingsView(viewModel: accountSettingsViewModel)
                 .tabItem {
-                    Image(systemName: selectedTab == 3 ? "gear.badge.fill" : "gear")
+                    Image(systemName: selectedTab == 3 ? "gearshape.fill" : "gear")
                     Text(localizationManager.localized(.tabSettings))
                 }
                 .tag(3)
