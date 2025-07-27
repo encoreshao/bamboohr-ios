@@ -46,6 +46,10 @@ struct TimeEntryView: View {
                         withAnimation(.spring()) {
                             viewModel.selectedDate = Date()
                         }
+                        // 确保数据加载
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            viewModel.forceRefreshTimeEntries()
+                        }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "calendar.circle.fill")
@@ -138,16 +142,24 @@ struct TimeEntryView: View {
                 if viewModel.isLoadingEntries {
                     HStack {
                         Spacer()
-                        VStack(spacing: 8) {
+                        VStack(spacing: 12) {
                             ProgressView()
                                 .scaleEffect(1.2)
-                            Text("加载中...")
+                            Text(getLocalizedText("正在加载...", "Loading..."))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            Text(formattedDate)
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(4)
                         }
                         Spacer()
                     }
-                    .frame(minHeight: 60)
+                    .frame(minHeight: 80)
+                    .transition(.opacity.combined(with: .scale))
                 } else if viewModel.timeEntries.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "clock.badge.xmark")
@@ -158,21 +170,35 @@ struct TimeEntryView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
+
+                        Text(formattedDate)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(4)
                     }
                     .frame(maxWidth: .infinity, minHeight: 80)
                     .background(Color(.systemGray6).opacity(0.5))
                     .cornerRadius(8)
+                    .transition(.opacity.combined(with: .scale))
                 } else {
                     LazyVStack(spacing: 6) {
                         ForEach(viewModel.timeEntries, id: \.id) { entry in
                             TimeEntryRowView(entry: entry)
-                                .transition(.slide.combined(with: .opacity))
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                ))
                         }
                     }
+                    .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: viewModel.timeEntries.count)
+            .animation(.easeInOut(duration: 0.4), value: viewModel.timeEntries.count)
             .animation(.easeInOut(duration: 0.3), value: viewModel.isLoadingEntries)
+            .animation(.easeInOut(duration: 0.3), value: viewModel.selectedDate)
         }
         .padding()
         .background(
@@ -266,7 +292,16 @@ struct TimeEntryView: View {
                     .datePickerStyle(GraphicalDatePickerStyle())
                     .labelsHidden()
                     .onChange(of: viewModel.selectedDate) { oldValue, newValue in
-                        print("DEBUG: Date picker changed from \(oldValue) to \(newValue)")
+                        print("DEBUG: 📅 Date picker changed from \(oldValue) to \(newValue)")
+
+                        // 确保日期确实发生了变化
+                        if !Calendar.current.isDate(oldValue, inSameDayAs: newValue) {
+                            print("DEBUG: 🎯 Date actually changed, force refreshing time entries")
+
+                            // 使用强制刷新方法确保数据加载
+                            viewModel.forceRefreshTimeEntries()
+                        }
+
                         // 选择日期后自动关闭picker
                         withAnimation(.spring()) {
                             showingDatePicker = false
@@ -275,23 +310,50 @@ struct TimeEntryView: View {
 
                     // 快速日期选择按钮
                     HStack(spacing: 8) {
-                        Button("昨天") {
+                        Button(getLocalizedText("昨天", "Yesterday")) {
                             if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
-                                viewModel.selectedDate = yesterday
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    viewModel.selectedDate = yesterday
+                                }
+                                // 确保数据加载
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    viewModel.forceRefreshTimeEntries()
+                                }
+                            }
+                            withAnimation(.spring()) {
+                                showingDatePicker = false
                             }
                         }
                         .buttonStyle(.bordered)
                         .font(.caption)
 
-                        Button("今天") {
-                            viewModel.selectedDate = Date()
+                        Button(getLocalizedText("今天", "Today")) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.selectedDate = Date()
+                            }
+                            // 确保数据加载
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                viewModel.forceRefreshTimeEntries()
+                            }
+                            withAnimation(.spring()) {
+                                showingDatePicker = false
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                         .font(.caption)
 
-                        Button("明天") {
+                        Button(getLocalizedText("明天", "Tomorrow")) {
                             if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
-                                viewModel.selectedDate = tomorrow
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    viewModel.selectedDate = tomorrow
+                                }
+                                // 确保数据加载
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    viewModel.forceRefreshTimeEntries()
+                                }
+                            }
+                            withAnimation(.spring()) {
+                                showingDatePicker = false
                             }
                         }
                         .buttonStyle(.bordered)

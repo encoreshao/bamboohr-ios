@@ -122,6 +122,13 @@ enum LocalizationKey: String, CaseIterable {
     case settingsSaved = "settings_saved"
     case settingsCleared = "settings_cleared"
 
+    // Language settings
+    case settingsLanguage = "settings_language"
+    case settingsLanguageAuto = "settings_language_auto"
+    case settingsLanguageEnglish = "settings_language_english"
+    case settingsLanguageChinese = "settings_language_chinese"
+    case settingsGeneralSettings = "settings_general_settings"
+
     // Common messages
     case loading = "loading"
     case error = "error"
@@ -144,6 +151,24 @@ enum LocalizationKey: String, CaseIterable {
     case checkSettings = "check_settings"
 }
 
+// MARK: - Language Settings
+enum LanguageOption: String, CaseIterable {
+    case system = "system"
+    case english = "en"
+    case chinese = "zh-Hans"
+
+    var displayName: String {
+        switch self {
+        case .system:
+            return LocalizationManager.shared.localized(.settingsLanguageAuto)
+        case .english:
+            return LocalizationManager.shared.localized(.settingsLanguageEnglish)
+        case .chinese:
+            return LocalizationManager.shared.localized(.settingsLanguageChinese)
+        }
+    }
+}
+
 // MARK: - Localization Manager
 class LocalizationManager: ObservableObject {
     static let shared = LocalizationManager()
@@ -152,19 +177,67 @@ class LocalizationManager: ObservableObject {
 
     private let supportedLanguages = ["en", "zh-Hans"]
     private var localizations: [String: [String: String]] = [:]
+    private let languageKey = "user_preferred_language"
 
     private init() {
-        // Get system language
-        let systemLanguage = Locale.preferredLanguages.first ?? "en"
+        // Load user preference first
+        let userPreference = UserDefaults.standard.string(forKey: languageKey)
 
-        // Map system language to supported language
-        if systemLanguage.hasPrefix("zh") {
-            currentLanguage = "zh-Hans"
+        if let userPreference = userPreference, userPreference != "system" {
+            // User has set a specific language preference
+            currentLanguage = userPreference
         } else {
-            currentLanguage = "en"
+            // Use system language or auto-detect
+            let systemLanguage = Locale.preferredLanguages.first ?? "en"
+            if systemLanguage.hasPrefix("zh") {
+                currentLanguage = "zh-Hans"
+            } else {
+                currentLanguage = "en"
+            }
         }
 
         loadLocalizations()
+    }
+
+    func setLanguagePreference(_ option: LanguageOption) {
+        switch option {
+        case .system:
+            UserDefaults.standard.set("system", forKey: languageKey)
+            // Auto-detect system language
+            let systemLanguage = Locale.preferredLanguages.first ?? "en"
+            if systemLanguage.hasPrefix("zh") {
+                currentLanguage = "zh-Hans"
+            } else {
+                currentLanguage = "en"
+            }
+        case .english:
+            UserDefaults.standard.set("en", forKey: languageKey)
+            currentLanguage = "en"
+        case .chinese:
+            UserDefaults.standard.set("zh-Hans", forKey: languageKey)
+            currentLanguage = "zh-Hans"
+        }
+
+        UserDefaults.standard.synchronize()
+    }
+
+    func getCurrentLanguageOption() -> LanguageOption {
+        let userPreference = UserDefaults.standard.string(forKey: languageKey)
+
+        if let userPreference = userPreference {
+            switch userPreference {
+            case "system":
+                return .system
+            case "en":
+                return .english
+            case "zh-Hans":
+                return .chinese
+            default:
+                return .system
+            }
+        } else {
+            return .system
+        }
     }
 
     private func loadLocalizations() {
@@ -281,6 +354,13 @@ class LocalizationManager: ObservableObject {
                 "confirm": "OK",
                 "settings_saved": "Settings saved successfully",
                 "settings_cleared": "Settings cleared successfully",
+
+                // Language settings
+                "settings_language": "Language",
+                "settings_language_auto": "Follow System",
+                "settings_language_english": "English",
+                "settings_language_chinese": "简体中文",
+                "settings_general_settings": "General Settings",
 
                 // Common messages
                 "loading": "Loading...",
@@ -415,6 +495,13 @@ class LocalizationManager: ObservableObject {
                 "confirm": "确定",
                 "settings_saved": "设置保存成功",
                 "settings_cleared": "设置清除成功",
+
+                // Language settings
+                "settings_language": "语言",
+                "settings_language_auto": "跟随系统",
+                "settings_language_english": "English",
+                "settings_language_chinese": "简体中文",
+                "settings_general_settings": "通用设置",
 
                 // Common messages
                 "loading": "加载中...",

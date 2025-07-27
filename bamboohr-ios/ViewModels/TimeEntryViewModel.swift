@@ -14,13 +14,19 @@ class TimeEntryViewModel: ObservableObject {
     @Published var projects: [Project] = []
     @Published var selectedDate = Date() {
         didSet {
-            if selectedDate != oldValue {
+            // 检查日期是否真的发生了变化（不是同一天）
+            if !Calendar.current.isDate(selectedDate, inSameDayAs: oldValue) {
                 let formatter = DateFormatter()
                 formatter.dateStyle = .medium
                 print("DEBUG: ✅ Selected date changed from \(formatter.string(from: oldValue)) to \(formatter.string(from: selectedDate))")
 
-                // 立即加载新日期的时间记录
-                loadTimeEntries()
+                // 取消之前的请求
+                timeEntriesCancellable?.cancel()
+
+                // 立即开始加载，提供更好的响应性
+                DispatchQueue.main.async { [weak self] in
+                    self?.loadTimeEntries()
+                }
             }
         }
     }
@@ -36,6 +42,7 @@ class TimeEntryViewModel: ObservableObject {
 
     private var bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
+    private var timeEntriesCancellable: AnyCancellable?
 
     init(bambooHRService: BambooHRService) {
         self.bambooHRService = bambooHRService
@@ -77,6 +84,9 @@ class TimeEntryViewModel: ObservableObject {
     }
 
     func loadTimeEntries() {
+        // 取消之前的加载请求
+        timeEntriesCancellable?.cancel()
+
         // 防止重复加载
         guard !isLoadingEntries else {
             print("DEBUG: Already loading time entries, skipping duplicate request")
@@ -84,17 +94,30 @@ class TimeEntryViewModel: ObservableObject {
         }
 
         isLoadingEntries = true
+        let targetDate = selectedDate // 保存当前目标日期
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .medium
-        print("DEBUG: 🔄 Loading time entries for date: \(dateFormatter.string(from: selectedDate))")
+        print("DEBUG: 🔄 Loading time entries for date: \(dateFormatter.string(from: targetDate))")
 
-        bambooHRService.fetchTimeEntries(for: selectedDate)
+        // 清空当前时间记录，显示加载状态，带有动画效果
+        withAnimation(.easeOut(duration: 0.2)) {
+            timeEntries = []
+        }
+
+        timeEntriesCancellable = bambooHRService.fetchTimeEntries(for: targetDate)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
-                    self?.isLoadingEntries = false
+                    // 确保我们仍在处理正确的日期
+                    guard let self = self, Calendar.current.isDate(self.selectedDate, inSameDayAs: targetDate) else {
+                        print("DEBUG: ⏩ Date changed during loading, discarding results for \(dateFormatter.string(from: targetDate))")
+                        return
+                    }
+
+                    self.isLoadingEntries = false
+
                     if case .failure(let error) = completion {
-                        print("DEBUG: ❌ Failed to load time entries for \(self?.selectedDate ?? Date()): \(error.localizedDescription)")
+                        print("DEBUG: ❌ Failed to load time entries for \(dateFormatter.string(from: targetDate)): \(error.localizedDescription)")
 
                         // Only show error toast for authentication or network errors
                         // Don't show error for 404 (time tracking might not be enabled)
@@ -116,26 +139,35 @@ class TimeEntryViewModel: ObservableObject {
                 receiveValue: { [weak self] (entries: [TimeEntry]) in
                     guard let self = self else { return }
 
-                    // 确保这是当前选择日期的数据
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateStyle = .medium
-                    print("DEBUG: ✅ Received \(entries.count) time entries for \(dateFormatter.string(from: self.selectedDate))")
+                    // 确保我们仍在处理正确的日期
+                    guard Calendar.current.isDate(self.selectedDate, inSameDayAs: targetDate) else {
+                        print("DEBUG: ⏩ Date changed during loading, discarding results for \(dateFormatter.string(from: targetDate))")
+                        return
+                    }
+
+                    print("DEBUG: ✅ Received \(entries.count) time entries for \(dateFormatter.string(from: targetDate))")
 
                     // Sort entries in reverse order to match Node.js implementation
                     // This shows the most recent entries first
-                    self.timeEntries = entries.reversed()
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        self.timeEntries = entries.reversed()
+                    }
 
-                    print("DEBUG: 📋 Total hours for \(dateFormatter.string(from: self.selectedDate)): \(self.formattedTotalHours)")
+                    print("DEBUG: 📋 Total hours for \(dateFormatter.string(from: targetDate)): \(self.formattedTotalHours)")
 
                     // Print details of loaded entries for debugging
                     for entry in entries {
                         print("DEBUG: Entry - ID: \(entry.id), Hours: \(entry.hours), Project: \(entry.projectName ?? "None"), Task: \(entry.taskName ?? "None"), Date: \(entry.date)")
                     }
-
-                    // 移除成功消息提示，按用户建议只在首页显示成功消息
                 }
             )
-            .store(in: &cancellables)
+    }
+
+    // 强制刷新当前日期的时间记录
+    func forceRefreshTimeEntries() {
+        print("DEBUG: 🔄 Force refreshing time entries for current date")
+        isLoadingEntries = false // 重置加载状态
+        loadTimeEntries()
     }
 
     func submitTimeEntry() {

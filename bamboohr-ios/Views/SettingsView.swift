@@ -12,11 +12,13 @@ struct SettingsView: View {
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var showingApiKeyInfo = false
     @State private var showingClearConfirmation = false
+    @State private var selectedLanguage: LanguageOption = .system
 
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+
                     // Connection status section
                     connectionStatusSection
 
@@ -25,6 +27,9 @@ struct SettingsView: View {
 
                     // Actions section
                     actionsSection
+                    
+                    // General settings section
+                    generalSettingsSection
 
                     // App information section
                     appInfoSection
@@ -33,6 +38,9 @@ struct SettingsView: View {
                 .padding(.bottom) // 只保留底部padding
             }
             .contentMargins(.top, 0) // 移除顶部内容边距
+            .onAppear {
+                selectedLanguage = localizationManager.getCurrentLanguageOption()
+            }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -64,6 +72,69 @@ struct SettingsView: View {
                 ))
             }
         }
+    }
+
+    // MARK: - General Settings Section
+    private var generalSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "gearshape")
+                    .foregroundColor(.blue)
+                    .font(.title2)
+                Text(localizationManager.localized(.settingsGeneralSettings))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "globe")
+                        .foregroundColor(.blue)
+                        .font(.title3)
+                        .frame(width: 24)
+
+                    Text(localizationManager.localized(.settingsLanguage))
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+
+                    Spacer()
+
+                    Menu {
+                        ForEach(LanguageOption.allCases, id: \.self) { option in
+                            Button(action: {
+                                selectedLanguage = option
+                                localizationManager.setLanguagePreference(option)
+                            }) {
+                                HStack {
+                                    Text(option.displayName)
+                                    if selectedLanguage == option {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(selectedLanguage.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.blue)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
 
     // MARK: - Connection Status Section
