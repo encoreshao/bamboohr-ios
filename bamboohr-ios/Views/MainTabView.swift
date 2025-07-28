@@ -17,7 +17,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView(viewModel: userViewModel)
+            HomeView(viewModel: userViewModel, leaveViewModel: leaveViewModel, selectedTab: $selectedTab)
                 .tabItem {
                     Image(systemName: selectedTab == 0 ? "house.fill" : "house")
                     Text(localizationManager.localized(.tabHome))

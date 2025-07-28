@@ -9,6 +9,8 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var viewModel: UserViewModel
+    @ObservedObject var leaveViewModel: LeaveViewModel
+    @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
 
@@ -60,6 +62,11 @@ struct HomeView: View {
         .onAppear {
             if viewModel.user == nil && !viewModel.isLoading {
                 viewModel.loadUserInfo()
+            }
+
+            // 确保休假数据也加载
+            if leaveViewModel.leaveEntries.isEmpty && !leaveViewModel.isLoading {
+                leaveViewModel.loadLeaveInfo()
             }
         }
     }
@@ -158,7 +165,7 @@ struct HomeView: View {
                         Text(user.department)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        
+
                         Image(systemName: "map.fill")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -302,10 +309,15 @@ struct HomeView: View {
                 QuickInfoRow(
                     icon: "person.2.badge.minus",
                     title: localizationManager.localized(.homeOnLeave),
-                    value: "\(viewModel.todayLeaveCount) \(localizationManager.localized(.homePeople))",
+                    value: "\(getTodayLeaveCount()) \(localizationManager.localized(.homePeople))",
                     valueColor: .orange,
                     description: localizationManager.localized(.homeViewDetails)
-                )
+                ) {
+                    // 点击跳转到休假页面
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selectedTab = 2
+                    }
+                }
 
                 // 删除今日任务行，因为没有真实数据
             }
@@ -319,6 +331,16 @@ struct HomeView: View {
     }
 
     // MARK: - Helper Methods
+
+    // 计算今天的休假人数（与LeaveView保持一致）
+    private func getTodayLeaveCount() -> Int {
+        let today = Calendar.current.startOfDay(for: Date())
+        return leaveViewModel.leaveEntries.filter { entry in
+            guard let start = entry.startDate, let end = entry.endDate else { return false }
+            return (start...end).contains(today)
+        }.count
+    }
+
     private var greetingMessage: String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
@@ -371,6 +393,7 @@ struct HomeView: View {
     private func refreshData() async {
         isRefreshing = true
         viewModel.loadUserInfo()
+        leaveViewModel.loadLeaveInfo()
         isRefreshing = false
     }
 }
@@ -423,8 +446,33 @@ struct QuickInfoRow: View {
     let value: String
     let valueColor: Color
     let description: String
+    let action: (() -> Void)?
+
+    init(icon: String, title: String, value: String, valueColor: Color, description: String, action: (() -> Void)? = nil) {
+        self.icon = icon
+        self.title = title
+        self.value = value
+        self.valueColor = valueColor
+        self.description = description
+        self.action = action
+    }
 
     var body: some View {
+        Group {
+            if let action = action {
+                Button(action: action) {
+                    quickInfoContent
+                }
+                .buttonStyle(PlainButtonStyle())
+                .background(Color(.systemGray6).opacity(0.5))
+                .cornerRadius(8)
+            } else {
+                quickInfoContent
+            }
+        }
+    }
+
+    private var quickInfoContent: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .foregroundColor(.blue)
@@ -447,13 +495,22 @@ struct QuickInfoRow: View {
                 .font(.headline)
                 .fontWeight(.bold)
                 .foregroundColor(valueColor)
+
+            if action != nil {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .padding(.leading, 4)
+            }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, action != nil ? 8 : 0)
     }
 }
 
 #Preview {
     let service = BambooHRService()
     let viewModel = UserViewModel(bambooHRService: service)
-    return HomeView(viewModel: viewModel)
+    let leaveViewModel = LeaveViewModel(bambooHRService: service)
+    return HomeView(viewModel: viewModel, leaveViewModel: leaveViewModel, selectedTab: .constant(0))
 }

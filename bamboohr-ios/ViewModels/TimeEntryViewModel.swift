@@ -237,5 +237,83 @@ class TimeEntryViewModel: ObservableObject {
         return String(format: "%.1f", total)
     }
 
+    // 获取指定日期的时间记录总数
+    func getTotalHours(for date: Date) -> Double {
+        // 如果是当前选择的日期，直接使用已加载的数据
+        if Calendar.current.isDate(date, inSameDayAs: selectedDate) {
+            return timeEntries.reduce(0.0) { $0 + $1.hours }
+        }
+
+        // 对于其他日期，这里应该从API获取，暂时返回模拟数据
+        // TODO: 实现从API获取指定日期的时间记录
+        return generateMockHours(for: date)
+    }
+
+    // 获取本周每一天的时间记录数据
+    func getWeeklyTimeData(for selectedDate: Date) -> [DayTimeData] {
+        let calendar = Calendar.current
+        var data: [DayTimeData] = []
+
+        // 获取本周的开始日期(周一)
+        let weekday = calendar.component(.weekday, from: selectedDate)
+        let daysFromMonday = (weekday == 1) ? 6 : weekday - 2 // 周日是1，周一是2
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: selectedDate) else { return data }
+
+        for i in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: i, to: startOfWeek) else { continue }
+
+            let hours = getTotalHours(for: date)
+            let isToday = calendar.isDate(date, inSameDayAs: Date())
+
+            let dayData = DayTimeData(
+                date: date,
+                hours: hours,
+                dayLabel: formatDayLabel(date),
+                isToday: isToday,
+                height: 0 // 会在视图中重新计算
+            )
+
+            data.append(dayData)
+        }
+
+        return data
+    }
+
+    // 格式化日期标签
+    private func formatDayLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E" // 周几的简写
+        let localizationManager = LocalizationManager.shared
+        if localizationManager.currentLanguage == "zh-Hans" {
+            formatter.locale = Locale(identifier: "zh_CN")
+        } else {
+            formatter.locale = Locale(identifier: "en_US")
+        }
+        return formatter.string(from: date)
+    }
+
+    // 生成模拟数据（临时使用，直到实现真实数据获取）
+    private func generateMockHours(for date: Date) -> Double {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+
+        // 周末较少工作时间
+        if weekday == 1 || weekday == 7 { // 周日或周六
+            return Double.random(in: 0...2)
+        } else {
+            // 工作日
+            return Double.random(in: 6...9)
+        }
+    }
+
     // MARK: - Data Loading Methods
+}
+
+// MARK: - 周数据模型
+struct DayTimeData {
+    let date: Date
+    let hours: Double
+    let dayLabel: String
+    let isToday: Bool
+    var height: CGFloat // 改为var以便修改
 }

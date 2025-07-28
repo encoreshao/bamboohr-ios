@@ -129,6 +129,9 @@ enum LocalizationKey: String, CaseIterable {
     case settingsLanguageChinese = "settings_language_chinese"
     case settingsGeneralSettings = "settings_general_settings"
 
+    // Time Entry - Weekly Chart
+    case timeWeeklyWorkHours = "time_weekly_work_hours"
+
     // Common messages
     case loading = "loading"
     case error = "error"
@@ -362,6 +365,9 @@ class LocalizationManager: ObservableObject {
                 "settings_language_chinese": "简体中文",
                 "settings_general_settings": "General Settings",
 
+                // Time Entry - Weekly Chart
+                "time_weekly_work_hours": "Weekly Work Hours",
+
                 // Common messages
                 "loading": "Loading...",
                 "error": "Error",
@@ -502,6 +508,9 @@ class LocalizationManager: ObservableObject {
                 "settings_language_english": "English",
                 "settings_language_chinese": "简体中文",
                 "settings_general_settings": "通用设置",
+
+                // Time Entry - Weekly Chart
+                "time_weekly_work_hours": "本周工作时长",
 
                 // Common messages
                 "loading": "加载中...",

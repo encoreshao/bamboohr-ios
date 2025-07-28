@@ -634,7 +634,7 @@ struct TimeEntryRowView: View {
 extension TimeEntryView {
     private var weeklyTimeChart: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("本周工作时长", systemImage: "chart.bar.fill")
+            Label(localizationManager.localized(.timeWeeklyWorkHours), systemImage: "chart.bar.fill")
                 .font(.headline)
                 .foregroundColor(.primary)
 
@@ -702,7 +702,9 @@ struct WeeklyTimeChartView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("最高: \(String(format: "%.1f", maxHours))h")
+                let localizationManager = LocalizationManager.shared
+                let maxText = localizationManager.currentLanguage == "zh-Hans" ? "最高" : "Max"
+                Text("\(maxText): \(String(format: "%.1f", maxHours))h")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -737,7 +739,9 @@ struct WeeklyTimeChartView: View {
 
     // 显示tooltip
     private func showTooltip(for dayData: DayTimeData, at location: CGPoint) {
-        showingTooltip = "\(dayData.dayLabel): \(String(format: "%.1f", dayData.hours))小时"
+        let localizationManager = LocalizationManager.shared
+        let hoursText = localizationManager.currentLanguage == "zh-Hans" ? "小时" : "hours"
+        showingTooltip = "\(dayData.dayLabel): \(String(format: "%.1f", dayData.hours))\(hoursText)"
         tooltipPosition = CGPoint(x: location.x, y: location.y - 30)
 
         // 自动隐藏
@@ -758,75 +762,31 @@ struct WeeklyTimeChartView: View {
 
     // 加载周数据
     private func loadWeeklyData() {
-        let calendar = Calendar.current
-        let today = Date()
+        // 从ViewModel获取本周的真实数据
+        var data = viewModel.getWeeklyTimeData(for: selectedDate)
 
-        // 获取本周的开始日期(周一)
-        let weekday = calendar.component(.weekday, from: selectedDate)
-        // let /*daysFromMonday*/ = (weekday == 1) ? 6 : weekday - 2 // 周日是1，周一是2
-        let daysFromMonday = weekday;
-        guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: selectedDate) else { return }
+        // 重新计算高度
+        let maxHours = data.map { $0.hours }.max() ?? 8.0
 
-        var data: [DayTimeData] = []
-
-        for i in 0..<7 {
-            guard let date = calendar.date(byAdding: .day, value: i, to: startOfWeek) else { continue }
-
-            // 模拟数据 - 实际应该从viewModel或API获取
-            let hours = generateMockHours(for: date)
-            let isToday = calendar.isDate(date, inSameDayAs: today)
-
-            let dayData = DayTimeData(
-                date: date,
-                hours: hours,
-                dayLabel: formatDayLabel(date),
-                isToday: isToday,
-                height: calculateHeight(hours: hours)
+        for i in 0..<data.count {
+            data[i] = DayTimeData(
+                date: data[i].date,
+                hours: data[i].hours,
+                dayLabel: data[i].dayLabel,
+                isToday: data[i].isToday,
+                height: calculateHeight(hours: data[i].hours, maxHours: maxHours)
             )
-
-            data.append(dayData)
         }
 
         weeklyData = data
     }
 
-    // 生成模拟数据
-    private func generateMockHours(for date: Date) -> Double {
-        let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: date)
-
-        // 周末较少工作时间
-        if weekday == 1 || weekday == 7 { // 周日或周六
-            return Double.random(in: 0...2)
-        } else {
-            // 工作日
-            return Double.random(in: 6...9)
-        }
-    }
-
-    // 格式化日期标签
-    private func formatDayLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E" // 周几的简写
-        formatter.locale = Locale(identifier: "zh_CN")
-        return formatter.string(from: date)
-    }
-
     // 计算柱状图高度
-    private func calculateHeight(hours: Double) -> CGFloat {
+    private func calculateHeight(hours: Double, maxHours: Double) -> CGFloat {
         let maxHeight: CGFloat = 100
-        let maxHours = self.maxHours
-        return CGFloat(hours / maxHours) * maxHeight
+        guard maxHours > 0 else { return 4 }
+        return max(4, CGFloat(hours / maxHours) * maxHeight)
     }
-}
-
-// MARK: - 周数据模型
-struct DayTimeData {
-    let date: Date
-    let hours: Double
-    let dayLabel: String
-    let isToday: Bool
-    let height: CGFloat
 }
 
 #Preview {

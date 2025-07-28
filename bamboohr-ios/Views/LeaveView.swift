@@ -59,20 +59,22 @@ struct LeaveView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    if viewModel.isLoading {
-                        loadingView
-                    } else if let error = viewModel.error {
-                        errorView(message: error)
-                    } else {
-                        leaveEntriesSection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        if viewModel.isLoading {
+                            loadingView
+                        } else if let error = viewModel.error {
+                            errorView(message: error)
+                        } else {
+                            leaveEntriesSection(proxy: proxy)
+                        }
                     }
+                    .padding(.horizontal) // 只保留水平padding
+                    .padding(.bottom) // 只保留底部padding
                 }
-                .padding(.horizontal) // 只保留水平padding
-                .padding(.bottom) // 只保留底部padding
+                .contentMargins(.top, 0) // 移除顶部内容边距
             }
-            .contentMargins(.top, 0) // 移除顶部内容边距
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -149,7 +151,7 @@ struct LeaveView: View {
     }
 
     // MARK: - Summary Header
-    private var summaryHeaderView: some View {
+    private func summaryHeaderView(proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "chart.bar.fill")
@@ -166,19 +168,36 @@ struct LeaveView: View {
                     title: localizationManager.localized(.leaveToday),
                     count: getTodayLeaveCount(),
                     color: .orange
-                )
+                ) {
+                    // 点击今天时跳转到今天的section
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        proxy.scrollTo(Date(), anchor: .top)
+                    }
+                }
 
                 StatBadge(
                     title: localizationManager.localized(.leaveTomorrow),
                     count: getTomorrowLeaveCount(),
                     color: .blue
-                )
+                ) {
+                    // 点击明天时跳转到明天的section
+                    if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
+                        withAnimation(.easeInOut(duration: 0.6)) {
+                            proxy.scrollTo(tomorrow, anchor: .top)
+                        }
+                    }
+                }
 
                 StatBadge(
                     title: localizationManager.localized(.leaveWeekly),
                     count: getWeeklyLeaveCount(),
                     color: .purple
-                )
+                ) {
+                    // 点击本周时跳转到第一个section（今天）
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        proxy.scrollTo(Date(), anchor: .top)
+                    }
+                }
             }
         }
         .padding()
@@ -225,10 +244,10 @@ struct LeaveView: View {
         isRefreshing = false
     }
 
-    private var leaveEntriesSection: some View {
+    private func leaveEntriesSection(proxy: ScrollViewProxy) -> some View {
         VStack(spacing: 16) {
             // Summary header
-            summaryHeaderView
+            summaryHeaderView(proxy: proxy)
 
             // Daily leave overview
             ForEach(0..<7) { offset in
@@ -244,6 +263,7 @@ struct LeaveView: View {
                     entries: entries,
                     isToday: Calendar.current.isDateInToday(day)
                 )
+                .id(day) // Add ID for scrolling
             }
         }
     }
@@ -254,6 +274,7 @@ struct StatBadge: View {
     let title: String
     let count: Int
     let color: Color
+    let action: () -> Void
 
     var body: some View {
         VStack(spacing: 4) {
@@ -271,6 +292,13 @@ struct StatBadge: View {
         .padding(.vertical, 12)
         .background(color.opacity(0.1))
         .cornerRadius(12)
+        .onTapGesture {
+            action()
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(color.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 

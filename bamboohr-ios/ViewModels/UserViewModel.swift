@@ -19,7 +19,6 @@ class UserViewModel: ObservableObject {
     @Published var remainingLeavedays: Int = 0
     @Published var totalProjects: Int = 0
     @Published var totalEmployees: Int = 0
-    @Published var todayLeaveCount: Int = 0
     @Published var isOnLeaveToday: Bool = false
 
     private let bambooHRService: BambooHRService
@@ -69,7 +68,7 @@ class UserViewModel: ObservableObject {
         // 获取本周开始日期
         let weekday = calendar.component(.weekday, from: today)
         print("DEBUG: Weekday \(weekday) for weekly hours calculation")
-        
+
         // let daysFromMonday = (weekday == 1) ? 6 : weekday - 2
         let daysFromMonday = weekday
         guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) else {
@@ -82,23 +81,22 @@ class UserViewModel: ObservableObject {
         let leaveBalancePublisher = getLeaveBalance()
         let projectsPublisher = getTotalProjects()
         let employeesPublisher = getTotalEmployees()
-        let todayLeavePublisher = getTodayLeaveInfo()
+        let userLeaveStatusPublisher = getUserLeaveStatus()
 
         return Publishers.CombineLatest4(
             weeklyHoursPublisher,
             leaveBalancePublisher,
             projectsPublisher,
-            Publishers.CombineLatest(employeesPublisher, todayLeavePublisher)
+            Publishers.CombineLatest(employeesPublisher, userLeaveStatusPublisher)
         )
-        .map { weeklyHours, leaveBalance, projects, employeesTodayLeave in
-            let (employees, todayLeave) = employeesTodayLeave
+        .map { weeklyHours, leaveBalance, projects, employeesUserStatus in
+            let (employees, isUserOnLeave) = employeesUserStatus
             DispatchQueue.main.async { [weak self] in
                 self?.weeklyHours = weeklyHours
                 self?.remainingLeavedays = leaveBalance
                 self?.totalProjects = projects
                 self?.totalEmployees = employees
-                self?.todayLeaveCount = todayLeave.count
-                self?.isOnLeaveToday = todayLeave.isUserOnLeave
+                self?.isOnLeaveToday = isUserOnLeave
             }
             return true
         }
@@ -185,8 +183,8 @@ class UserViewModel: ObservableObject {
         return Just(42).setFailureType(to: BambooHRError.self).eraseToAnyPublisher()
     }
 
-    // 获取今日休假信息
-    private func getTodayLeaveInfo() -> AnyPublisher<(count: Int, isUserOnLeave: Bool), BambooHRError> {
+    // 获取用户休假状态
+    private func getUserLeaveStatus() -> AnyPublisher<Bool, BambooHRError> {
         let today = Date()
         let calendar = Calendar.current
         let endDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
@@ -203,11 +201,11 @@ class UserViewModel: ObservableObject {
                 let userId = Int(userIdString) ?? 0
                 let isUserOnLeave = todayEntries.contains { $0.employeeId == userId }
 
-                return (count: todayEntries.count, isUserOnLeave: isUserOnLeave)
+                return isUserOnLeave
             }
             .catch { _ in
-                // 如果获取失败，返回模拟数据
-                Just((count: 8, isUserOnLeave: false)).setFailureType(to: BambooHRError.self)
+                // 如果获取失败，返回默认值
+                Just(false).setFailureType(to: BambooHRError.self)
             }
             .eraseToAnyPublisher()
     }
