@@ -719,6 +719,10 @@ struct WeeklyTimeChartView: View {
         .onChange(of: selectedDate) { _, _ in
             loadWeeklyData()
         }
+        .onChange(of: viewModel.weeklyTimeEntries) { _, _ in
+            // 当本周缓存数据更新时重新加载图表数据
+            loadWeeklyData()
+        }
     }
 
     // Tooltip视图

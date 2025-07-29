@@ -27,6 +27,15 @@ class TimeEntryViewModel: ObservableObject {
                 DispatchQueue.main.async { [weak self] in
                     self?.loadTimeEntries()
                 }
+
+                // 检查是否切换到了不同的周，如果是则重新加载本周数据
+                let calendar = Calendar.current
+                if !calendar.isDate(selectedDate, equalTo: oldValue, toGranularity: .weekOfYear) {
+                    print("DEBUG: 📅 Week changed, reloading weekly data")
+                    DispatchQueue.main.async { [weak self] in
+                        self?.loadWeeklyTimeEntries(for: self?.selectedDate ?? Date())
+                    }
+                }
             }
         }
     }
@@ -39,6 +48,10 @@ class TimeEntryViewModel: ObservableObject {
     @Published var isLoadingEntries = false
     @Published var error: String?
     @Published var successMessage: String?
+
+    // 本周时间记录缓存
+    @Published var weeklyTimeEntries: [String: [TimeEntry]] = [:] // 日期字符串 -> 时间记录数组
+    private var weeklyDataCancellable: AnyCancellable?
 
     private var bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
@@ -57,6 +70,7 @@ class TimeEntryViewModel: ObservableObject {
         // Load initial data
         loadProjects()
         loadTimeEntries()
+        loadWeeklyTimeEntries(for: selectedDate)
     }
 
     func loadProjects() {
@@ -170,6 +184,63 @@ class TimeEntryViewModel: ObservableObject {
         loadTimeEntries()
     }
 
+    // 加载本周的时间记录数据
+    func loadWeeklyTimeEntries(for selectedDate: Date) {
+        weeklyDataCancellable?.cancel()
+
+        let calendar = Calendar.current
+
+        // 获取本周的开始日期(周一)和结束日期(周日)
+        let weekday = calendar.component(.weekday, from: selectedDate)
+        let daysFromMonday = (weekday == 1) ? 6 : weekday - 2 // 周日是1，周一是2
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: selectedDate),
+              let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) else {
+            print("DEBUG: Failed to calculate week boundaries")
+            return
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        print("DEBUG: 📅 Loading weekly time entries from \(dateFormatter.string(from: startOfWeek)) to \(dateFormatter.string(from: endOfWeek))")
+
+        weeklyDataCancellable = bambooHRService.fetchTimeEntries(from: startOfWeek, to: endOfWeek)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    if case .failure(let error) = completion {
+                        print("DEBUG: ❌ Failed to load weekly time entries: \(error.localizedDescription)")
+                        // 不显示错误Toast，静默失败，继续使用已有数据
+                    }
+                },
+                receiveValue: { [weak self] entries in
+                    guard let self = self else { return }
+
+                    print("DEBUG: ✅ Received \(entries.count) weekly time entries")
+
+                    // 清空之前的缓存
+                    self.weeklyTimeEntries.removeAll()
+
+                    // 按日期分组存储
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                    for entry in entries {
+                        let dateKey = dateFormatter.string(from: entry.date)
+                        if self.weeklyTimeEntries[dateKey] == nil {
+                            self.weeklyTimeEntries[dateKey] = []
+                        }
+                        self.weeklyTimeEntries[dateKey]?.append(entry)
+                    }
+
+                    print("DEBUG: 📊 Cached time entries for \(self.weeklyTimeEntries.keys.count) days")
+                    for (dateKey, dayEntries) in self.weeklyTimeEntries {
+                        let totalHours = dayEntries.reduce(0.0) { $0 + $1.hours }
+                        print("DEBUG: \(dateKey): \(dayEntries.count) entries, \(totalHours) hours")
+                    }
+                }
+            )
+    }
+
     func submitTimeEntry() {
         guard let project = selectedProject else {
             let localizationManager = LocalizationManager.shared
@@ -215,6 +286,9 @@ class TimeEntryViewModel: ObservableObject {
 
                     // Reload time entries for the current date
                     self?.loadTimeEntries()
+
+                    // Reload weekly data to update the chart
+                    self?.loadWeeklyTimeEntries(for: self?.selectedDate ?? Date())
                 }
             )
             .store(in: &cancellables)
@@ -239,20 +313,34 @@ class TimeEntryViewModel: ObservableObject {
 
     // 获取指定日期的时间记录总数
     func getTotalHours(for date: Date) -> Double {
-        // 如果是当前选择的日期，直接使用已加载的数据
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateKey = dateFormatter.string(from: date)
+
+        // 首先检查缓存的本周数据
+        if let dayEntries = weeklyTimeEntries[dateKey] {
+            let totalHours = dayEntries.reduce(0.0) { $0 + $1.hours }
+            print("DEBUG: 💾 Using cached data for \(dateKey): \(totalHours) hours")
+            return totalHours
+        }
+
+        // 如果是当前选择的日期，使用已加载的数据
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) {
             return timeEntries.reduce(0.0) { $0 + $1.hours }
         }
 
-        // 对于其他日期，这里应该从API获取，暂时返回模拟数据
-        // TODO: 实现从API获取指定日期的时间记录
-        return generateMockHours(for: date)
+        // 对于没有缓存数据的日期，返回0小时
+        print("DEBUG: 📭 No data available for \(dateKey), returning 0 hours")
+        return 0.0
     }
 
     // 获取本周每一天的时间记录数据
     func getWeeklyTimeData(for selectedDate: Date) -> [DayTimeData] {
         let calendar = Calendar.current
         var data: [DayTimeData] = []
+
+        // 确保加载本周的时间记录数据
+        loadWeeklyTimeEntries(for: selectedDate)
 
         // 获取本周的开始日期(周一)
         let weekday = calendar.component(.weekday, from: selectedDate)
@@ -290,20 +378,6 @@ class TimeEntryViewModel: ObservableObject {
             formatter.locale = Locale(identifier: "en_US")
         }
         return formatter.string(from: date)
-    }
-
-    // 生成模拟数据（临时使用，直到实现真实数据获取）
-    private func generateMockHours(for date: Date) -> Double {
-        let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: date)
-
-        // 周末较少工作时间
-        if weekday == 1 || weekday == 7 { // 周日或周六
-            return Double.random(in: 0...2)
-        } else {
-            // 工作日
-            return Double.random(in: 6...9)
-        }
     }
 
     // MARK: - Data Loading Methods

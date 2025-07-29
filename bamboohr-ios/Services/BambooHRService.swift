@@ -428,6 +428,13 @@ class BambooHRService {
 
     // MARK: - Fetch Time Entries for a specific date
     func fetchTimeEntries(for date: Date) -> AnyPublisher<[TimeEntry], BambooHRError> {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        return fetchTimeEntries(from: startOfDay, to: startOfDay)
+    }
+
+    // MARK: - Fetch Time Entries for a date range
+    func fetchTimeEntries(from startDate: Date, to endDate: Date) -> AnyPublisher<[TimeEntry], BambooHRError> {
         guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
             print("DEBUG: Invalid URL or missing account settings in fetchTimeEntries")
             return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
@@ -435,7 +442,8 @@ class BambooHRService {
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: date)
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
 
         // Use the correct endpoint format based on working Node.js API
         let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_tracking/timesheet_entries")
@@ -443,8 +451,8 @@ class BambooHRService {
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
         components?.queryItems = [
             URLQueryItem(name: "employeeIds", value: settings.employeeId), // Note: employeeIds (plural)
-            URLQueryItem(name: "start", value: dateString),
-            URLQueryItem(name: "end", value: dateString)
+            URLQueryItem(name: "start", value: startDateString),
+            URLQueryItem(name: "end", value: endDateString)
         ]
 
         guard let url = components?.url else {
@@ -460,7 +468,7 @@ class BambooHRService {
         let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
         request.addValue(authString, forHTTPHeaderField: "Authorization")
 
-        print("DEBUG: Fetching time entries from URL: \(url.absoluteString)")
+        print("DEBUG: Fetching time entries from \(startDateString) to \(endDateString) from URL: \(url.absoluteString)")
 
         return session.dataTaskPublisher(for: request)
             .mapError { error -> BambooHRError in

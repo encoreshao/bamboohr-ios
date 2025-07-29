@@ -41,7 +41,6 @@ struct PeopleView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .contentMargins(.top, -15)
                 }
             }
             .toolbar {
@@ -161,7 +160,6 @@ struct PeopleView: View {
             .padding(.horizontal)
             .padding(.bottom)
         }
-        .contentMargins(.top, -15)
     }
 
     private var noResultsView: some View {
