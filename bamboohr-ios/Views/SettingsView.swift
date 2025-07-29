@@ -37,7 +37,7 @@ struct SettingsView: View {
                 .padding(.horizontal) // 只保留水平padding
                 .padding(.bottom) // 只保留底部padding
             }
-            .contentMargins(.top, 0) // 移除顶部内容边距
+            .contentMargins(.top, -15) // 移除顶部内容边距
             .onAppear {
                 selectedLanguage = localizationManager.getCurrentLanguageOption()
             }

@@ -44,6 +44,7 @@ enum LocalizationKey: String, CaseIterable {
     case homeOnLeave = "home_on_leave"
     case homePeople = "home_people"
     case homeViewDetails = "home_view_details"
+    case homeLoadingProfile = "home_loading_profile"
     case homeMonthlyProjects = "home_monthly_projects"
     case homeInProgress = "home_in_progress"
     case homeTodayTasks = "home_today_tasks"
@@ -94,6 +95,10 @@ enum LocalizationKey: String, CaseIterable {
     case loadingLeaveInfo = "loading_leave_info"
     case leaveWeeklyOverview = "leave_weekly_overview"
     case leaveAllPresent = "leave_all_present"
+    case leaveBalance = "leave_balance"
+    case leaveRequestedDays = "leave_requested_days"
+    case leaveApprovedDays = "leave_approved_days"
+    case leaveLoadingInfo = "leave_loading_info"
 
     // Settings screen
     case settingsTitle = "settings_title"
@@ -149,6 +154,7 @@ enum LocalizationKey: String, CaseIterable {
     case peopleLocation = "people_location"
     case peopleDepartment = "people_department"
     case peopleEmployeeID = "people_employee_id"
+    case peoplePleaseWait = "people_please_wait"
 
     // Common messages
     case loading = "loading"
@@ -298,6 +304,7 @@ class LocalizationManager: ObservableObject {
                 "home_on_leave": "On Leave",
                 "home_people": "People",
                 "home_view_details": "View Details",
+                "home_loading_profile": "Loading profile...",
                 "home_monthly_projects": "Monthly Projects",
                 "home_in_progress": "In Progress",
                 "home_today_tasks": "Today's Tasks",
@@ -348,6 +355,10 @@ class LocalizationManager: ObservableObject {
                 "loading_leave_info": "Loading leave information...",
                 "leave_weekly_overview": "Weekly Overview",
                 "leave_all_present": "All present",
+                "leave_balance": "Leave Balance",
+                "leave_requested_days": "Requested Days",
+                "leave_approved_days": "Approved Days",
+                "leave_loading_info": "Loading leave information...",
 
                 // Settings screen
                 "settings_title": "Settings",
@@ -403,6 +414,7 @@ class LocalizationManager: ObservableObject {
                 "people_location": "Location",
                 "people_department": "Department",
                 "people_employee_id": "Employee ID",
+                "people_please_wait": "Please wait...",
 
                 // Common messages
                 "loading": "Loading...",
@@ -460,6 +472,7 @@ class LocalizationManager: ObservableObject {
                 "home_on_leave": "休假中",
                 "home_people": "人数",
                 "home_view_details": "查看详情",
+                "home_loading_profile": "加载中...",
                 "home_monthly_projects": "月度项目",
                 "home_in_progress": "进行中",
                 "home_today_tasks": "今日任务",
@@ -510,6 +523,10 @@ class LocalizationManager: ObservableObject {
                 "loading_leave_info": "加载休假信息中...",
                 "leave_weekly_overview": "本周概览",
                 "leave_all_present": "全员到齐",
+                "leave_balance": "剩余假期",
+                "leave_requested_days": "请假天数",
+                "leave_approved_days": "批准天数",
+                "leave_loading_info": "加载休假信息中...",
 
                 // Settings screen
                 "settings_title": "设置",
@@ -565,6 +582,7 @@ class LocalizationManager: ObservableObject {
                 "people_location": "位置",
                 "people_department": "部门",
                 "people_employee_id": "员工ID",
+                "people_please_wait": "请稍候...",
 
                 // Common messages
                 "loading": "加载中...",

@@ -14,13 +14,34 @@ struct PeopleView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            Group {
                 if viewModel.selectedEmployee != nil {
                     // Employee Details View
                     employeeDetailsView
                 } else {
                     // Employee List View
-                    employeeListView
+                    VStack(spacing: 0) {
+                        // Search Bar - Always at top
+                        searchBar
+
+                        // Content below search bar
+                        Group {
+                            if viewModel.isLoading {
+                                loadingView
+                            } else if let error = viewModel.error {
+                                errorView(message: error)
+                            } else if viewModel.filteredEmployees.isEmpty {
+                                noResultsView
+                            } else {
+                                employeesList
+                                    .refreshable {
+                                        await refreshData()
+                                    }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .contentMargins(.top, -15)
                 }
             }
             .toolbar {
@@ -70,27 +91,7 @@ struct PeopleView: View {
         }
     }
 
-    // MARK: - Employee List View
-    private var employeeListView: some View {
-        VStack(spacing: 0) {
-            // Search Bar - Always at top
-            searchBar
-
-            // Content below search bar
-            if viewModel.isLoading {
-                loadingView
-            } else if let error = viewModel.error {
-                errorView(message: error)
-            } else if viewModel.filteredEmployees.isEmpty {
-                noResultsView
-            } else {
-                employeesList
-            }
-        }
-        .refreshable {
-            await refreshData()
-        }
-    }
+    // MARK: - Employee List View removed (inlined into main body)
 
     private var searchBar: some View {
         HStack {
@@ -160,6 +161,7 @@ struct PeopleView: View {
             .padding(.horizontal)
             .padding(.bottom)
         }
+        .contentMargins(.top, -15)
     }
 
     private var noResultsView: some View {
@@ -208,6 +210,7 @@ struct PeopleView: View {
                 }
             }
         }
+        .contentMargins(.top, -15)
     }
 
     private func profileHeader(employee: User) -> some View {
@@ -389,44 +392,124 @@ struct PeopleView: View {
 
     // MARK: - Loading and Error Views
     private var loadingView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-                .tint(.green)
+        GeometryReader { geometry in
+            VStack(spacing: 24) {
+                // Loading animation
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.8)
+                        .tint(.green)
 
-            Text(localizationManager.localized(.peopleLoadingEmployees))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                    // Animated dots
+                    HStack(spacing: 4) {
+                        ForEach(0..<3) { index in
+                            Circle()
+                                .fill(.green)
+                                .frame(width: 6, height: 6)
+                                .opacity(0.3)
+                                .animation(
+                                    .easeInOut(duration: 0.6)
+                                    .repeatForever()
+                                    .delay(Double(index) * 0.2),
+                                    value: true
+                                )
+                        }
+                    }
+                }
+
+                VStack(spacing: 8) {
+                    Text(localizationManager.localized(.peopleLoadingEmployees))
+                        .font(.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    Text(localizationManager.localized(.peoplePleaseWait))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .frame(maxWidth: .infinity, minHeight: 200)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorView(message: String) -> some View {
-        VStack(spacing: 20) {
-            Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 50))
-                .foregroundColor(.red)
+        GeometryReader { geometry in
+            VStack(spacing: 32) {
+                // Error illustration
+                VStack(spacing: 20) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.orange.opacity(0.1), .red.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 120, height: 120)
 
-            Text(localizationManager.localized(.loadingFailed))
-                .font(.title2)
-                .fontWeight(.bold)
+                        Image(systemName: "wifi.slash")
+                            .font(.system(size: 40, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
 
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
+                    VStack(spacing: 12) {
+                        Text(localizationManager.localized(.loadingFailed))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
 
-            Button(localizationManager.localized(.retry)) {
-                viewModel.loadEmployees()
+                        Text(message)
+                            .font(.body)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                            .lineLimit(3)
+                            .padding(.horizontal, 20)
+                    }
+                }
+
+                // Retry button with better styling
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        viewModel.loadEmployees()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text(localizationManager.localized(.retry))
+                            .font(.headline)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            colors: [.blue, .blue.opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(25)
+                    .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(1.0)
+                .animation(.easeInOut(duration: 0.1), value: true)
             }
-            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func refreshData() async {
