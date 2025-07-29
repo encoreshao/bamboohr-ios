@@ -11,6 +11,7 @@ struct MainTabView: View {
     @StateObject private var userViewModel = UserViewModel(bambooHRService: BambooHRService.shared)
     @StateObject private var timeEntryViewModel = TimeEntryViewModel(bambooHRService: BambooHRService.shared)
     @StateObject private var leaveViewModel = LeaveViewModel(bambooHRService: BambooHRService.shared)
+    @StateObject private var peopleViewModel = PeopleViewModel(bambooHRService: BambooHRService.shared)
     @StateObject private var accountSettingsViewModel = AccountSettingsViewModel(bambooHRService: BambooHRService.shared)
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var selectedTab = 0
@@ -38,18 +39,25 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
-            SettingsView(viewModel: accountSettingsViewModel)
+            PeopleView(viewModel: peopleViewModel)
                 .tabItem {
-                    Image(systemName: selectedTab == 3 ? "gearshape.fill" : "gear")
-                    Text(localizationManager.localized(.tabSettings))
+                    Image(systemName: selectedTab == 3 ? "person.crop.circle.fill" : "person.crop.circle")
+                    Text(localizationManager.localized(.tabPeople))
                 }
                 .tag(3)
+
+            SettingsView(viewModel: accountSettingsViewModel)
+                .tabItem {
+                    Image(systemName: selectedTab == 4 ? "gearshape.fill" : "gear")
+                    Text(localizationManager.localized(.tabSettings))
+                }
+                .tag(4)
         }
         .withToast()
         .onAppear {
             // Check if settings are configured
             if !accountSettingsViewModel.hasValidSettings {
-                selectedTab = 3 // Switch to settings tab
+                selectedTab = 4 // Switch to settings tab (now at position 4)
             }
         }
     }

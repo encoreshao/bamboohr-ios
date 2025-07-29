@@ -14,6 +14,7 @@ enum LocalizationKey: String, CaseIterable {
     case tabHome = "tab_home"
     case tabTime = "tab_time"
     case tabLeave = "tab_leave"
+    case tabPeople = "tab_people"
     case tabSettings = "tab_settings"
 
     // Home screen
@@ -131,6 +132,23 @@ enum LocalizationKey: String, CaseIterable {
 
     // Time Entry - Weekly Chart
     case timeWeeklyWorkHours = "time_weekly_work_hours"
+
+    // People screen
+    case peopleTitle = "people_title"
+    case peopleAllEmployees = "people_all_employees"
+    case peopleSearchPlaceholder = "people_search_placeholder"
+    case peopleNoResults = "people_no_results"
+    case peopleLoadingEmployees = "people_loading_employees"
+    case peopleEmployeeDetails = "people_employee_details"
+    case peopleContactInfo = "people_contact_info"
+    case peopleWorkInfo = "people_work_info"
+    case peopleBackToList = "people_back_to_list"
+    case peopleNotAvailable = "people_not_available"
+    case peopleEmail = "people_email"
+    case peoplePhone = "people_phone"
+    case peopleLocation = "people_location"
+    case peopleDepartment = "people_department"
+    case peopleEmployeeID = "people_employee_id"
 
     // Common messages
     case loading = "loading"
@@ -250,6 +268,7 @@ class LocalizationManager: ObservableObject {
                 "tab_home": "Home",
                 "tab_time": "Time",
                 "tab_leave": "Leave",
+                "tab_people": "People",
                 "tab_settings": "Settings",
 
                 // Home screen
@@ -368,6 +387,23 @@ class LocalizationManager: ObservableObject {
                 // Time Entry - Weekly Chart
                 "time_weekly_work_hours": "Weekly Work Hours",
 
+                // People screen
+                "people_title": "People",
+                "people_all_employees": "All Employees",
+                "people_search_placeholder": "Search employees...",
+                "people_no_results": "No employees found",
+                "people_loading_employees": "Loading employees...",
+                "people_employee_details": "Employee Details",
+                "people_contact_info": "Contact Info",
+                "people_work_info": "Work Info",
+                "people_back_to_list": "Back to List",
+                "people_not_available": "Not Available",
+                "people_email": "Email",
+                "people_phone": "Phone",
+                "people_location": "Location",
+                "people_department": "Department",
+                "people_employee_id": "Employee ID",
+
                 // Common messages
                 "loading": "Loading...",
                 "error": "Error",
@@ -394,6 +430,7 @@ class LocalizationManager: ObservableObject {
                 "tab_home": "主页",
                 "tab_time": "时间",
                 "tab_leave": "休假",
+                "tab_people": "人员",
                 "tab_settings": "设置",
 
                 // Home screen
@@ -511,6 +548,23 @@ class LocalizationManager: ObservableObject {
 
                 // Time Entry - Weekly Chart
                 "time_weekly_work_hours": "本周工作时长",
+
+                // People screen
+                "people_title": "人员",
+                "people_all_employees": "所有员工",
+                "people_search_placeholder": "搜索员工...",
+                "people_no_results": "未找到员工",
+                "people_loading_employees": "加载员工中...",
+                "people_employee_details": "员工详情",
+                "people_contact_info": "联系方式",
+                "people_work_info": "工作信息",
+                "people_back_to_list": "返回列表",
+                "people_not_available": "不可用",
+                "people_email": "邮箱",
+                "people_phone": "电话",
+                "people_location": "位置",
+                "people_department": "部门",
+                "people_employee_id": "员工ID",
 
                 // Common messages
                 "loading": "加载中...",

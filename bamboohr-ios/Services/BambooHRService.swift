@@ -627,4 +627,117 @@ class BambooHRService {
             }
             .eraseToAnyPublisher()
     }
+
+    // MARK: - Fetch Employee Directory
+    func fetchEmployeeDirectory() -> AnyPublisher<[User], BambooHRError> {
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: Invalid URL or missing account settings in fetchEmployeeDirectory")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        // BambooHR employee directory endpoint
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/directory")
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching employee directory from URL: \(endpoint.absoluteString)")
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .map(\.data)
+            .tryMap { data -> [User] in
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("DEBUG: Employee directory raw response: \(String(jsonString.prefix(500)))...")
+                }
+
+                // Try to parse the JSON response
+                do {
+                    let decoder = JSONDecoder()
+
+                    // BambooHR directory response structure
+                    struct DirectoryResponse: Codable {
+                        let employees: [DirectoryEmployee]
+                    }
+
+                    struct DirectoryEmployee: Codable {
+                        let id: String
+                        let displayName: String?
+                        let firstName: String?
+                        let lastName: String?
+                        let jobTitle: String?
+                        let workEmail: String?
+                        let department: String?
+                        let location: String?
+                        let photoUploaded: Bool?
+                        let photoUrl: String?
+                        let preferredName: String?
+                        let homePhone: String?
+                        let mobilePhone: String?
+                        let workPhone: String?
+                    }
+
+                    let response = try decoder.decode(DirectoryResponse.self, from: data)
+
+                    let users = response.employees.compactMap { employee -> User? in
+                        let firstName = employee.firstName ?? ""
+                        let lastName = employee.lastName ?? ""
+                        let jobTitle = employee.jobTitle ?? "Unknown"
+                        let department = employee.department ?? "Unknown"
+
+                        // Skip if essential fields are missing
+                        guard !employee.id.isEmpty, !(firstName.isEmpty && lastName.isEmpty) else {
+                            return nil
+                        }
+
+                        // Construct photo URL if available
+                        var photoUrl: String?
+                        if employee.photoUploaded == true {
+                            photoUrl = "https://api.bamboohr.com/api/gateway.php/\(settings.companyDomain)/v1/employees/\(employee.id)/photo/large"
+                        }
+
+                        // Determine best phone number (prioritize mobile, then work, then home)
+                        let phone = employee.mobilePhone ?? employee.workPhone ?? employee.homePhone
+
+                        return User(
+                            id: employee.id,
+                            firstName: firstName,
+                            lastName: lastName,
+                            jobTitle: jobTitle,
+                            department: department,
+                            photoUrl: photoUrl,
+                            nickname: employee.preferredName,
+                            location: employee.location,
+                            email: employee.workEmail,
+                            phone: phone
+                        )
+                    }
+
+                    print("DEBUG: Successfully parsed \(users.count) employees from directory")
+                    return users
+                } catch {
+                    print("DEBUG: Failed to parse employee directory JSON: \(error.localizedDescription)")
+                    throw BambooHRError.decodingError(error)
+                }
+            }
+            .mapError { error -> BambooHRError in
+                if let bambooError = error as? BambooHRError {
+                    return bambooError
+                }
+
+                if let urlError = error as? URLError {
+                    print("DEBUG: Network error in fetchEmployeeDirectory: \(urlError.localizedDescription)")
+                    return BambooHRError.networkError(urlError)
+                }
+
+                print("DEBUG: Unknown error in fetchEmployeeDirectory: \(error.localizedDescription)")
+                return BambooHRError.unknownError(error.localizedDescription)
+            }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
 }

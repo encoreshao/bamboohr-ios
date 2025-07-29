@@ -267,7 +267,12 @@ struct HomeView: View {
                     icon: "person.3.fill",
                     color: .green,
                     subtitle: localizationManager.localized(.homeDepartmentMembers)
-                )
+                ) {
+                    // 点击跳转到People页面
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selectedTab = 3
+                    }
+                }
             }
         }
         .padding()
@@ -405,14 +410,45 @@ struct StatCard: View {
     let icon: String
     let color: Color
     let subtitle: String
+    let action: (() -> Void)?
+
+    init(title: String, value: String, icon: String, color: Color, subtitle: String, action: (() -> Void)? = nil) {
+        self.title = title
+        self.value = value
+        self.icon = icon
+        self.color = color
+        self.subtitle = subtitle
+        self.action = action
+    }
 
     var body: some View {
+        Group {
+            if let action = action {
+                Button(action: action) {
+                    statCardContent
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                statCardContent
+            }
+        }
+    }
+
+    private var statCardContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(color)
                     .font(.title2)
                 Spacer()
+
+                // Show chevron for actionable cards
+                if action != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .padding(.leading, 4)
+                }
             }
 
             Text(value)
@@ -436,6 +472,9 @@ struct StatCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(color.opacity(0.2), lineWidth: 1)
         )
+        // Add subtle scale effect for actionable cards
+        .scaleEffect(action != nil ? 1.0 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: action != nil)
     }
 }
 

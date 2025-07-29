@@ -18,8 +18,10 @@ final class User {
     var photoUrl: String?
     var nickname: String?
     var location: String?
+    var email: String?
+    var phone: String?
 
-    init(id: String, firstName: String, lastName: String, jobTitle: String, department: String, photoUrl: String? = nil, nickname: String? = nil, location: String? = nil) {
+    init(id: String, firstName: String, lastName: String, jobTitle: String, department: String, photoUrl: String? = nil, nickname: String? = nil, location: String? = nil, email: String? = nil, phone: String? = nil) {
         self.id = id
         self.firstName = firstName
         self.lastName = lastName
@@ -28,6 +30,8 @@ final class User {
         self.photoUrl = photoUrl
         self.nickname = nickname
         self.location = location
+        self.email = email
+        self.phone = phone
     }
 
     var fullName: String {
@@ -50,6 +54,8 @@ extension User: Codable {
         case photoUrl
         case nickname
         case location
+        case email
+        case phone
     }
 
     convenience init(from decoder: Decoder) throws {
@@ -63,6 +69,8 @@ extension User: Codable {
         let photoUrl = try container.decodeIfPresent(String.self, forKey: .photoUrl)
         let nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
         let location = try container.decodeIfPresent(String.self, forKey: .location)
+        let email = try container.decodeIfPresent(String.self, forKey: .email)
+        let phone = try container.decodeIfPresent(String.self, forKey: .phone)
 
         self.init(
             id: id,
@@ -73,6 +81,8 @@ extension User: Codable {
             photoUrl: photoUrl,
             nickname: nickname,
             location: location,
+            email: email,
+            phone: phone
         )
     }
 
@@ -86,5 +96,7 @@ extension User: Codable {
         try container.encodeIfPresent(photoUrl, forKey: .photoUrl)
         try container.encodeIfPresent(nickname, forKey: .nickname)
         try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(phone, forKey: .phone)
     }
 }
