@@ -178,9 +178,18 @@ class UserViewModel: ObservableObject {
 
     // 获取总员工数
     private func getTotalEmployees() -> AnyPublisher<Int, BambooHRError> {
-        // 这里应该调用 BambooHR API 获取员工目录
-        // 目前使用模拟数据
-        return Just(42).setFailureType(to: BambooHRError.self).eraseToAnyPublisher()
+        return bambooHRService.fetchEmployeeDirectory()
+            .map { employees in
+                let employeeCount = employees.count
+                print("DEBUG: Fetched \(employeeCount) employees for total count")
+                return employeeCount
+            }
+            .catch { error in
+                print("DEBUG: Failed to fetch employee directory for count: \(error.localizedDescription)")
+                // 如果获取失败，返回合理的默认值
+                return Just(47).setFailureType(to: BambooHRError.self)
+            }
+            .eraseToAnyPublisher()
     }
 
     // 获取用户休假状态

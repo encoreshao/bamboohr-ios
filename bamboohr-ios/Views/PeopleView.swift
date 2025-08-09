@@ -118,32 +118,32 @@ struct PeopleView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(Color(.systemBackground))
-        .overlay(
-            // 数据来源指示器
-            Group {
-                if viewModel.isUsingMockData && !viewModel.isLoading {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Image(systemName: "info.circle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                Text("Demo Data")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
-                            .padding(.trailing, 16)
-                        }
-                    }
-                }
-            }
-        )
+//        .overlay(
+//            // 数据来源指示器
+//            Group {
+//                if viewModel.isUsingMockData && !viewModel.isLoading {
+//                    VStack {
+//                        Spacer()
+//                        HStack {
+//                            Spacer()
+//                            HStack(spacing: 4) {
+//                                Image(systemName: "info.circle.fill")
+//                                    .foregroundColor(.orange)
+//                                    .font(.caption)
+//                                Text("Demo Data")
+//                                    .font(.caption2)
+//                                    .foregroundColor(.orange)
+//                            }
+//                            .padding(.horizontal, 8)
+//                            .padding(.vertical, 2)
+//                            .background(Color.orange.opacity(0.1))
+//                            .cornerRadius(8)
+//                            .padding(.trailing, 16)
+//                        }
+//                    }
+//                }
+//            }
+//        )
     }
 
     private var employeesList: some View {

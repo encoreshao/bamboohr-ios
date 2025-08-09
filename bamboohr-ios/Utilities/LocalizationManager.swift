@@ -278,7 +278,7 @@ class LocalizationManager: ObservableObject {
                 "tab_settings": "Settings",
 
                 // Home screen
-                "home_title": "Dashboard",
+                "home_title": "My Info",
                 "home_greeting_morning": "Good morning",
                 "home_greeting_afternoon": "Good afternoon",
                 "home_greeting_evening": "Good evening",
@@ -341,7 +341,7 @@ class LocalizationManager: ObservableObject {
                 "time_project": "Project",
 
                 // Leave screen
-                "leave_title": "Team Leave",
+                "leave_title": "Who's Out",
                 "leave_today_title": "Today",
                 "leave_tomorrow_title": "Tomorrow",
                 "leave_week_title": "This Week",
