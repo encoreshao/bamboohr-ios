@@ -25,6 +25,9 @@ struct TimeEntryView: View {
 
                     // 添加周柱状图
                     weeklyTimeChart
+
+                    // My Timesheet 月度总结
+                    monthlyTimesheetSummary
                 }
                 .padding(.horizontal) // 减少顶部padding
                 .padding(.bottom) // 只保留底部padding
@@ -646,6 +649,67 @@ extension TimeEntryView {
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
+    }
+
+    private var monthlyTimesheetSummary: some View {
+        NavigationLink(destination: TimesheetView(viewModel: viewModel)) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundColor(.blue)
+                        .font(.title2)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(getLocalizedText("我的工时表", "My Timesheet"))
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+
+                        Text(getLocalizedText("查看本月工时详情", "View monthly time details"))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(getLocalizedText("本月总计", "Month Total"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        HStack(spacing: 4) {
+                            Text(currentMonthHours)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+
+                            Text(getLocalizedText("小时", "hours"))
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var currentMonthHours: String {
+        // Simple calculation - show current week total for now
+        // This will be updated when user opens the timesheet view for actual monthly data
+        let weeklyData = viewModel.getWeeklyTimeData(for: Date())
+        let totalHours = weeklyData.reduce(0) { $0 + $1.hours }
+        return String(format: "%.1f", totalHours)
     }
 }
 

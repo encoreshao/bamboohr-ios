@@ -380,6 +380,78 @@ class TimeEntryViewModel: ObservableObject {
         return formatter.string(from: date)
     }
 
+    // MARK: - Monthly Timesheet Methods
+
+    func fetchMonthlyTimeEntries(for date: Date = Date()) -> AnyPublisher<[TimesheetDayData], BambooHRError> {
+        let calendar = Calendar.current
+
+        // Get the first day of the month
+        guard let monthInterval = calendar.dateInterval(of: .month, for: date) else {
+            return Fail(error: BambooHRError.unknownError("Failed to calculate month boundaries"))
+                .eraseToAnyPublisher()
+        }
+
+        let startOfMonth = monthInterval.start
+        let endOfMonth = monthInterval.end
+
+        // Get the day before the end to get the actual last day of the month
+        let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: endOfMonth) ?? endOfMonth
+
+        return bambooHRService.fetchTimeEntries(from: startOfMonth, to: lastDayOfMonth)
+            .map { [weak self] timeEntries in
+                self?.processMonthlyEntries(timeEntries, for: date) ?? []
+            }
+            .eraseToAnyPublisher()
+    }
+
+    private func processMonthlyEntries(_ timeEntries: [TimeEntry], for date: Date) -> [TimesheetDayData] {
+        let calendar = Calendar.current
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        // Group entries by date
+        var entriesByDate: [String: [TimeEntry]] = [:]
+        for entry in timeEntries {
+            let dateKey = dateFormatter.string(from: entry.date)
+            if entriesByDate[dateKey] == nil {
+                entriesByDate[dateKey] = []
+            }
+            entriesByDate[dateKey]?.append(entry)
+        }
+
+        // Get all days in the month
+        guard let monthInterval = calendar.dateInterval(of: .month, for: date) else {
+            return []
+        }
+
+        let startOfMonth = monthInterval.start
+        let endOfMonth = monthInterval.end
+
+        var monthlyData: [TimesheetDayData] = []
+        var currentDate = startOfMonth
+
+        while currentDate < endOfMonth {
+            let dateKey = dateFormatter.string(from: currentDate)
+            let dayEntries = entriesByDate[dateKey] ?? []
+            let totalHours = dayEntries.reduce(0.0) { $0 + $1.hours }
+
+            let dayData = TimesheetDayData(
+                date: currentDate,
+                entries: dayEntries,
+                totalHours: totalHours
+            )
+
+            monthlyData.append(dayData)
+
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDate) else {
+                break
+            }
+            currentDate = nextDay
+        }
+
+        return monthlyData
+    }
+
     // MARK: - Data Loading Methods
 }
 
@@ -390,4 +462,37 @@ struct DayTimeData {
     let dayLabel: String
     let isToday: Bool
     var height: CGFloat // 改为var以便修改
+}
+
+// MARK: - 月度工时表数据模型
+struct TimesheetDayData {
+    let date: Date
+    let entries: [TimeEntry]
+    let totalHours: Double
+
+    var hasEntries: Bool {
+        return !entries.isEmpty
+    }
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+
+    var dayOfWeek: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    var isWeekend: Bool {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        return weekday == 1 || weekday == 7 // Sunday = 1, Saturday = 7
+    }
+
+    var isToday: Bool {
+        return Calendar.current.isDateInToday(date)
+    }
 }
