@@ -10,6 +10,7 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var viewModel: UserViewModel
     @ObservedObject var leaveViewModel: LeaveViewModel
+    @ObservedObject var timeEntryViewModel: TimeEntryViewModel
     @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
@@ -26,6 +27,7 @@ struct HomeView: View {
                         LazyVStack(spacing: 20) {
                             userProfileSection(user: user)
                             quickStatsSection(user: user)
+                            myTimeOffRequestsSection
                             todayOverviewSection
                         }
                         .padding(.horizontal) // 只保留水平padding
@@ -321,10 +323,10 @@ struct HomeView: View {
             ], spacing: 12) {
                 StatCard(
                     title: localizationManager.localized(.homeWeeklyWork),
-                    value: String(format: "%.1f", viewModel.weeklyHours),
+                    value: String(format: "%.1f", getCurrentWeeklyHours()),
                     icon: "clock.fill",
                     color: .blue,
-                    subtitle: getWeeklyHoursSubtitle(worked: viewModel.weeklyHours)
+                    subtitle: getWeeklyHoursSubtitle(worked: getCurrentWeeklyHours())
                 )
 
                 StatCard(
@@ -384,13 +386,9 @@ struct HomeView: View {
                 QuickInfoRow(
                     icon: "clock.arrow.circlepath",
                     title: localizationManager.localized(.homeWorkStatus),
-                    value: viewModel.isOnLeaveToday ?
-                        getLocalizedText("休假中", "On Leave") :
-                        localizationManager.localized(.homeWorkStatusActive),
-                    valueColor: viewModel.isOnLeaveToday ? .orange : .green,
-                    description: viewModel.isOnLeaveToday ?
-                        getLocalizedText("今日休假", "On leave today") :
-                        localizationManager.localized(.homeWorkStatusStarted)
+                    value: getWorkStatusText(),
+                    valueColor: getWorkStatusColor(),
+                    description: getWorkStatusDescription()
                 )
 
                 QuickInfoRow(
@@ -483,6 +481,142 @@ struct HomeView: View {
         leaveViewModel.loadLeaveInfo()
         isRefreshing = false
     }
+
+    // MARK: - Helper Methods
+
+    private func getCurrentWeeklyHours() -> Double {
+        let weeklyData = timeEntryViewModel.getWeeklyTimeData(for: Date())
+        return weeklyData.reduce(0.0) { $0 + $1.hours }
+    }
+
+    private func getWorkStatusText() -> String {
+        if viewModel.isOnLeaveToday {
+            return getLocalizedText("休假中", "On Leave")
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+
+        // Check if today is weekend (Saturday = 7, Sunday = 1)
+        if weekday == 1 || weekday == 7 {
+            return getLocalizedText("周末", "Weekend")
+        }
+
+        return localizationManager.localized(.homeWorkStatusActive)
+    }
+
+    private func getWorkStatusColor() -> Color {
+        if viewModel.isOnLeaveToday {
+            return .orange
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+
+        // Weekend color
+        if weekday == 1 || weekday == 7 {
+            return .gray
+        }
+
+        return .green
+    }
+
+    private func getWorkStatusDescription() -> String {
+        if viewModel.isOnLeaveToday {
+            return getLocalizedText("今日休假", "On leave today")
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+
+        // Check if today is weekend
+        if weekday == 1 || weekday == 7 {
+            return getLocalizedText("今日为周末", "Today is weekend")
+        }
+
+        return localizationManager.localized(.homeWorkStatusStarted)
+    }
+
+    // MARK: - My Time Off Requests Section
+
+    private var myTimeOffRequestsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "calendar.badge.plus")
+                    .foregroundColor(.purple)
+                Text(getLocalizedText("我的休假申请", "My Time Off Requests"))
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            if leaveViewModel.leaveEntries.isEmpty {
+                // Empty state
+                VStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 32))
+                        .foregroundColor(.gray.opacity(0.6))
+
+                    Text(getLocalizedText("暂无休假记录", "No time off requests"))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemGray6))
+                )
+            } else {
+                // Show recent requests (limit to 3)
+                VStack(spacing: 8) {
+                    ForEach(Array(leaveViewModel.leaveEntries.prefix(3)), id: \.id) { request in
+                        TimeOffRequestRow(request: request)
+                    }
+
+                    if leaveViewModel.leaveEntries.count > 3 {
+                        Button(action: {
+                            // Navigate to Leave tab
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                selectedTab = 2
+                            }
+                        }) {
+                            HStack {
+                                Text(getLocalizedText("查看更多", "View More"))
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+
+                                Spacer()
+
+                                Text("(\(leaveViewModel.leaveEntries.count - 3) more)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.blue.opacity(0.1))
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
 }
 
 // MARK: - Stat Card
@@ -554,7 +688,6 @@ struct StatCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(color.opacity(0.2), lineWidth: 1)
         )
-        // Add subtle scale effect for actionable cards
         .scaleEffect(action != nil ? 1.0 : 1.0)
         .animation(.easeInOut(duration: 0.1), value: action != nil)
     }
@@ -629,9 +762,88 @@ struct QuickInfoRow: View {
     }
 }
 
+// MARK: - Time Off Request Row Component
+struct TimeOffRequestRow: View {
+    let request: BambooLeaveInfo
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Status indicator
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(request.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    Spacer()
+
+                    Text(dateRangeText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text(request.type)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(statusColor.opacity(0.15))
+                        )
+                        .foregroundColor(statusColor)
+
+                    Spacer()
+
+                    if let duration = request.leaveDuration {
+                        Text("\(duration) day\(duration > 1 ? "s" : "")")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray6).opacity(0.5))
+        )
+    }
+
+    private var statusColor: Color {
+        // You can customize this based on request status
+        return .blue
+    }
+
+    private var dateRangeText: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+
+        if let start = request.startDate, let end = request.endDate {
+            let startStr = formatter.string(from: start)
+            let endStr = formatter.string(from: end)
+
+            if Calendar.current.isDate(start, inSameDayAs: end) {
+                return startStr
+            } else {
+                return "\(startStr) - \(endStr)"
+            }
+        }
+
+        return "Unknown"
+    }
+}
+
 #Preview {
     let service = BambooHRService()
     let viewModel = UserViewModel(bambooHRService: service)
     let leaveViewModel = LeaveViewModel(bambooHRService: service)
-    return HomeView(viewModel: viewModel, leaveViewModel: leaveViewModel, selectedTab: .constant(0))
+    let timeEntryViewModel = TimeEntryViewModel(bambooHRService: service)
+    return HomeView(viewModel: viewModel, leaveViewModel: leaveViewModel, timeEntryViewModel: timeEntryViewModel, selectedTab: .constant(0))
 }

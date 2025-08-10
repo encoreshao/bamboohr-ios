@@ -56,6 +56,7 @@ struct LeaveView: View {
     @ObservedObject var viewModel: LeaveViewModel
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
+    @State private var showingRequestTimeOff = false
 
     var body: some View {
         NavigationView {
@@ -106,6 +107,9 @@ struct LeaveView: View {
             if viewModel.leaveEntries.isEmpty && !viewModel.isLoading {
                 viewModel.loadLeaveInfo()
             }
+        }
+        .sheet(isPresented: $showingRequestTimeOff) {
+            RequestTimeOffView(viewModel: viewModel)
         }
     }
 
@@ -331,6 +335,9 @@ struct LeaveView: View {
             // Summary header
             summaryHeaderView(proxy: proxy)
 
+            // Request Time Off Button
+            requestTimeOffButton
+
             // Daily leave overview
             ForEach(0..<7) { offset in
                 let day = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
@@ -348,6 +355,75 @@ struct LeaveView: View {
                 .id(day) // Add ID for scrolling
             }
         }
+    }
+
+    // MARK: - Request Time Off Button
+    private var requestTimeOffButton: some View {
+        Button {
+            showingRequestTimeOff = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange.opacity(0.2), .orange.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .orange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(localizationManager.localized(.leaveRequestTimeOff))
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Text(localizationManager.localized(.leaveRequestTimeOffSubtitle))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline)
+                    .foregroundColor(.orange)
+                    .fontWeight(.medium)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.orange.opacity(0.3), .orange.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(1.0)
+        .animation(.easeInOut(duration: 0.1), value: showingRequestTimeOff)
     }
 }
 

@@ -10,8 +10,10 @@ import Combine
 
 class LeaveViewModel: ObservableObject {
     @Published var leaveEntries: [BambooLeaveInfo] = []
+    @Published var timeOffCategories: [TimeOffCategory] = TimeOffCategory.defaultCategories
     @Published var isLoading = false
     @Published var error: String?
+    @Published var isSubmittingRequest = false
 
     private let bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
@@ -53,4 +55,40 @@ class LeaveViewModel: ObservableObject {
             )
             .store(in: &cancellables)
     }
+
+    // MARK: - Submit Time Off Request
+    func submitTimeOffRequest(_ request: TimeOffRequest, completion: @escaping (Bool, String?) -> Void) {
+        isSubmittingRequest = true
+
+        bambooHRService.submitTimeOffRequest(request)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] (completionResult: Subscribers.Completion<BambooHRError>) in
+                    self?.isSubmittingRequest = false
+
+                    if case .failure(let error) = completionResult {
+                        let errorMessage = "Failed to submit time off request: \(error.localizedDescription)"
+                        ToastManager.shared.error(errorMessage)
+                        completion(false, errorMessage)
+                        print("DEBUG: Failed to submit time off request: \(error.localizedDescription)")
+                    }
+                },
+                receiveValue: { [weak self] success in
+                    if success {
+                        let successMessage = "Time off request submitted successfully!"
+                        ToastManager.shared.success(successMessage)
+                        completion(true, successMessage)
+                        // Refresh leave info after successful submission
+                        self?.loadLeaveInfo()
+                    } else {
+                        let errorMessage = "Failed to submit time off request"
+                        ToastManager.shared.error(errorMessage)
+                        completion(false, errorMessage)
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+
+
 }

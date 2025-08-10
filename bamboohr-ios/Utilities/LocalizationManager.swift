@@ -99,6 +99,19 @@ enum LocalizationKey: String, CaseIterable {
     case leaveRequestedDays = "leave_requested_days"
     case leaveApprovedDays = "leave_approved_days"
     case leaveLoadingInfo = "leave_loading_info"
+    case leaveRequestTimeOff = "leave_request_time_off"
+    case leaveRequestTimeOffSubtitle = "leave_request_time_off_subtitle"
+    case leaveRequestSubmit = "leave_request_submit"
+    case leaveRequestFrom = "leave_request_from"
+    case leaveRequestTo = "leave_request_to"
+    case leaveRequestCategory = "leave_request_category"
+    case leaveRequestAmount = "leave_request_amount"
+    case leaveRequestNote = "leave_request_note"
+    case leaveRequestSuccess = "leave_request_success"
+    case leaveRequestFailed = "leave_request_failed"
+
+    case leaveRequestSelectCategory = "leave_request_select_category"
+    case leaveRequestSelectCategoryError = "leave_request_select_category_error"
 
     // Settings screen
     case settingsTitle = "settings_title"
@@ -359,6 +372,18 @@ class LocalizationManager: ObservableObject {
                 "leave_requested_days": "Requested Days",
                 "leave_approved_days": "Approved Days",
                 "leave_loading_info": "Loading leave information...",
+                "leave_request_time_off": "Request Time Off",
+                "leave_request_time_off_subtitle": "Submit your time off request",
+                "leave_request_submit": "Send Request",
+                "leave_request_from": "From*",
+                "leave_request_to": "To*",
+                "leave_request_category": "Time Off Category*",
+                "leave_request_amount": "Amount*",
+                "leave_request_note": "Note",
+                "leave_request_success": "Time off request submitted successfully!",
+                "leave_request_failed": "Failed to submit time off request",
+                "leave_request_select_category": "--Select--",
+                "leave_request_select_category_error": "Please select a time off category",
 
                 // Settings screen
                 "settings_title": "Settings",
@@ -527,6 +552,18 @@ class LocalizationManager: ObservableObject {
                 "leave_requested_days": "请假天数",
                 "leave_approved_days": "批准天数",
                 "leave_loading_info": "加载休假信息中...",
+                "leave_request_time_off": "申请休假",
+                "leave_request_time_off_subtitle": "提交您的休假申请",
+                "leave_request_submit": "发送申请",
+                "leave_request_from": "开始日期*",
+                "leave_request_to": "结束日期*",
+                "leave_request_category": "休假类型*",
+                "leave_request_amount": "休假时长*",
+                "leave_request_note": "备注",
+                "leave_request_success": "休假申请提交成功！",
+                "leave_request_failed": "休假申请提交失败",
+                "leave_request_select_category": "--请选择--",
+                "leave_request_select_category_error": "请选择休假类型",
 
                 // Settings screen
                 "settings_title": "设置",

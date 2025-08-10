@@ -748,4 +748,75 @@ class BambooHRService {
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
+
+    // MARK: - Submit Time Off Request
+    func submitTimeOffRequest(_ request: TimeOffRequest) -> AnyPublisher<Bool, BambooHRError> {
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: Invalid URL or missing account settings in submitTimeOffRequest")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_off/requests")
+
+        var urlRequest = URLRequest(url: endpoint)
+        urlRequest.httpMethod = "POST"
+        urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        urlRequest.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        do {
+            encoder.keyEncodingStrategy = .useDefaultKeys
+            let encodedData = try encoder.encode(request)
+            urlRequest.httpBody = encodedData
+
+            if let requestString = String(data: encodedData, encoding: .utf8) {
+                print("DEBUG: Time off request payload: \(requestString)")
+            }
+        } catch let encodingError {
+            print("DEBUG: Error encoding time off request: \(encodingError.localizedDescription)")
+            return Fail(error: BambooHRError.decodingError(encodingError)).eraseToAnyPublisher()
+        }
+
+        return session.dataTaskPublisher(for: urlRequest)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in time off request submission: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<Bool, BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in time off request submission")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Time off request response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in time off request submission")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in time off request submission: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Time off request response body: \(responseString)")
+                        }
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                    }
+                }
+
+                // Log successful response
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("DEBUG: Time off request successful response: \(responseString)")
+                }
+
+                return Just(true)
+                    .setFailureType(to: BambooHRError.self)
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+
 }

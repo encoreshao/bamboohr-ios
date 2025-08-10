@@ -206,11 +206,8 @@ class TimeEntryViewModel: ObservableObject {
         weeklyDataCancellable = bambooHRService.fetchTimeEntries(from: startOfWeek, to: endOfWeek)
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
-                    if case .failure(let error) = completion {
-                        print("DEBUG: ❌ Failed to load weekly time entries: \(error.localizedDescription)")
-                        // 不显示错误Toast，静默失败，继续使用已有数据
-                    }
+                receiveCompletion: { _ in
+                    // Handle completion if needed, silent failure for weekly data loading
                 },
                 receiveValue: { [weak self] entries in
                     guard let self = self else { return }
@@ -274,21 +271,23 @@ class TimeEntryViewModel: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] (_: Bool) in
-                    self?.isSubmitting = false
+                    guard let self = self else { return }
+
+                    self.isSubmitting = false
                     // Clear the form
-                    self?.hours = 1.0
-                    self?.selectedProject = nil
-                    self?.selectedTask = nil
-                    self?.note = ""
+                    self.hours = 1.0
+                    self.selectedProject = nil
+                    self.selectedTask = nil
+                    self.note = ""
 
                     let localizationManager = LocalizationManager.shared
                     ToastManager.shared.success(localizationManager.localized(.timeSubmittedMessage))
 
                     // Reload time entries for the current date
-                    self?.loadTimeEntries()
+                    self.loadTimeEntries()
 
                     // Reload weekly data to update the chart
-                    self?.loadWeeklyTimeEntries(for: self?.selectedDate ?? Date())
+                    self.loadWeeklyTimeEntries(for: self.selectedDate)
                 }
             )
             .store(in: &cancellables)
