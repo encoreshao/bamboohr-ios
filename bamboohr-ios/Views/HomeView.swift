@@ -417,6 +417,16 @@ struct HomeView: View {
 
     // MARK: - Helper Methods
 
+    // 过滤当前用户的休假记录
+    private var myLeaveEntries: [BambooLeaveInfo] {
+        guard let user = viewModel.user, let currentUserId = Int(user.id) else {
+            return []
+        }
+        return leaveViewModel.leaveEntries.filter { entry in
+            entry.employeeId == currentUserId
+        }
+    }
+
     // 计算今天的休假人数（与LeaveView保持一致）
     private func getTodayLeaveCount() -> Int {
         let today = Calendar.current.startOfDay(for: Date())
@@ -553,7 +563,7 @@ struct HomeView: View {
                 Spacer()
             }
 
-            if leaveViewModel.leaveEntries.isEmpty {
+            if myLeaveEntries.isEmpty {
                 // Empty state
                 VStack(spacing: 12) {
                     Image(systemName: "calendar.badge.clock")
@@ -573,11 +583,11 @@ struct HomeView: View {
             } else {
                 // Show recent requests (limit to 3)
                 VStack(spacing: 8) {
-                    ForEach(Array(leaveViewModel.leaveEntries.prefix(3)), id: \.id) { request in
+                    ForEach(Array(myLeaveEntries.prefix(3)), id: \.id) { request in
                         TimeOffRequestRow(request: request)
                     }
 
-                    if leaveViewModel.leaveEntries.count > 3 {
+                    if myLeaveEntries.count > 3 {
                         Button(action: {
                             // Navigate to Leave tab
                             withAnimation(.easeInOut(duration: 0.3)) {
@@ -594,7 +604,7 @@ struct HomeView: View {
 
                                 Spacer()
 
-                                Text("(\(leaveViewModel.leaveEntries.count - 3) more)")
+                                Text("(\(myLeaveEntries.count - 3) more)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }

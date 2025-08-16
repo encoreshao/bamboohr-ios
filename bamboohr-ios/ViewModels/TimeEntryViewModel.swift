@@ -53,6 +53,10 @@ class TimeEntryViewModel: ObservableObject {
     @Published var weeklyTimeEntries: [String: [TimeEntry]] = [:] // 日期字符串 -> 时间记录数组
     private var weeklyDataCancellable: AnyCancellable?
 
+    // 当前月时间记录缓存
+    @Published var currentMonthTotalHours: Double = 0.0
+    private var monthlyDataCancellable: AnyCancellable?
+
     private var bambooHRService: BambooHRService
     private var cancellables = Set<AnyCancellable>()
     private var timeEntriesCancellable: AnyCancellable?
@@ -71,6 +75,7 @@ class TimeEntryViewModel: ObservableObject {
         loadProjects()
         loadTimeEntries()
         loadWeeklyTimeEntries(for: selectedDate)
+        loadCurrentMonthTotalHours()
     }
 
     func loadProjects() {
@@ -238,6 +243,30 @@ class TimeEntryViewModel: ObservableObject {
             )
     }
 
+    // 加载当前月的总工时
+    func loadCurrentMonthTotalHours() {
+        monthlyDataCancellable?.cancel()
+
+        let today = Date()
+        print("DEBUG: 📊 Loading current month total hours for \(DateFormatter().string(from: today))")
+
+        monthlyDataCancellable = fetchMonthlyTimeEntries(for: today)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        print("DEBUG: ❌ Failed to load monthly total hours: \(error.localizedDescription)")
+                        // Don't show error toast for this background calculation
+                    }
+                },
+                receiveValue: { [weak self] monthlyData in
+                    let totalHours = monthlyData.reduce(0.0) { $0 + $1.totalHours }
+                    self?.currentMonthTotalHours = totalHours
+                    print("DEBUG: ✅ Current month total hours: \(totalHours)")
+                }
+            )
+    }
+
     func submitTimeEntry() {
         guard let project = selectedProject else {
             let localizationManager = LocalizationManager.shared
@@ -288,6 +317,9 @@ class TimeEntryViewModel: ObservableObject {
 
                     // Reload weekly data to update the chart
                     self.loadWeeklyTimeEntries(for: self.selectedDate)
+
+                    // Reload monthly total to update the timesheet summary
+                    self.loadCurrentMonthTotalHours()
                 }
             )
             .store(in: &cancellables)

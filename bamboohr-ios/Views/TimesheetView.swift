@@ -85,13 +85,20 @@ struct TimesheetView: View {
 
             Spacer()
 
-            Button(action: {
-                if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) {
-                    selectedDate = nextMonth
+            if !isCurrentMonth {
+                Button(action: {
+                    if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) {
+                        selectedDate = nextMonth
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.blue)
+                        .font(.title2)
                 }
-            }) {
+            } else {
+                // Placeholder to maintain layout balance
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.clear)
                     .font(.title2)
             }
         }
@@ -269,6 +276,11 @@ struct TimesheetView: View {
 
     private var totalMonthHours: Double {
         return timesheetData.reduce(0) { $0 + $1.totalHours }
+    }
+
+    private var isCurrentMonth: Bool {
+        let calendar = Calendar.current
+        return calendar.isDate(selectedDate, equalTo: Date(), toGranularity: .month)
     }
 
     // MARK: - Helper Methods

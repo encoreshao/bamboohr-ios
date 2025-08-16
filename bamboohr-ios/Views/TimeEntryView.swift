@@ -705,11 +705,7 @@ extension TimeEntryView {
     }
 
     private var currentMonthHours: String {
-        // Simple calculation - show current week total for now
-        // This will be updated when user opens the timesheet view for actual monthly data
-        let weeklyData = viewModel.getWeeklyTimeData(for: Date())
-        let totalHours = weeklyData.reduce(0) { $0 + $1.hours }
-        return String(format: "%.1f", totalHours)
+        return String(format: "%.1f", viewModel.currentMonthTotalHours)
     }
 }
 
