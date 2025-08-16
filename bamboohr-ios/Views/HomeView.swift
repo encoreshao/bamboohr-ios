@@ -44,8 +44,13 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        Image(systemName: "house.fill")
-                            .foregroundColor(.blue)
+                        if let tabInfo = FloatingNavigationBar.getTabInfo(for: selectedTab) {
+                            Image(systemName: tabInfo.activeIcon)
+                                .foregroundColor(tabInfo.color)
+                        } else {
+                            Image(systemName: "house.fill")
+                                .foregroundColor(.blue)
+                        }
                         Text(localizationManager.localized(.homeTitle))
                             .font(.headline)
                             .fontWeight(.semibold)
@@ -57,8 +62,8 @@ struct HomeView: View {
                         viewModel.loadUserInfo()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.blue)
                     }
+                    .navigationGradientButtonStyle(color: .blue)
                     .disabled(viewModel.isLoading)
                 }
             }
@@ -129,7 +134,7 @@ struct HomeView: View {
             Button(localizationManager.localized(.refresh)) {
                 viewModel.loadUserInfo()
             }
-            .buttonStyle(.borderedProminent)
+            .primaryGradientButtonStyle()
         }
         .padding()
     }
@@ -191,21 +196,10 @@ struct HomeView: View {
                             .font(.headline)
                             .fontWeight(.medium)
                     }
-                    .foregroundColor(.white)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            colors: [.blue, .blue.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(25)
-                    .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .scaleEffect(1.0)
-                .animation(.easeInOut(duration: 0.1), value: true)
+                .primaryGradientButtonStyle()
             }
             .frame(maxWidth: .infinity)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -653,7 +647,7 @@ struct StatCard: View {
                 Button(action: action) {
                     statCardContent
                 }
-                .buttonStyle(PlainButtonStyle())
+                .actionCardGradientStyle(color: color)
             } else {
                 statCardContent
             }
@@ -727,9 +721,7 @@ struct QuickInfoRow: View {
                 Button(action: action) {
                     quickInfoContent
                 }
-                .buttonStyle(PlainButtonStyle())
-                .background(Color(.systemGray6).opacity(0.5))
-                .cornerRadius(8)
+                .actionCardGradientStyle(color: .blue)
             } else {
                 quickInfoContent
             }

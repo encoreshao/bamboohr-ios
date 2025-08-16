@@ -54,6 +54,7 @@ struct AuthenticatedAsyncImage: View {
 
 struct LeaveView: View {
     @ObservedObject var viewModel: LeaveViewModel
+    @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
     @State private var showingRequestTimeOff = false
@@ -84,8 +85,13 @@ struct LeaveView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        Image(systemName: "calendar.badge.clock")
-                            .foregroundColor(.orange)
+                        if let tabInfo = FloatingNavigationBar.getTabInfo(for: selectedTab) {
+                            Image(systemName: tabInfo.activeIcon)
+                                .foregroundColor(tabInfo.color)
+                        } else {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundColor(.orange)
+                        }
                         Text(localizationManager.localized(.leaveTitle))
                             .font(.headline)
                             .fontWeight(.semibold)
@@ -97,8 +103,8 @@ struct LeaveView: View {
                         viewModel.loadLeaveInfo()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.orange)
                     }
+                    .navigationGradientButtonStyle(color: .orange)
                     .disabled(viewModel.isLoading)
                 }
             }
@@ -214,21 +220,10 @@ struct LeaveView: View {
                             .font(.headline)
                             .fontWeight(.medium)
                     }
-                    .foregroundColor(.white)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            colors: [.orange, .orange.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(25)
-                    .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .scaleEffect(1.0)
-                .animation(.easeInOut(duration: 0.1), value: true)
+                .compactGradientButtonStyle(color: .orange)
             }
             .frame(maxWidth: .infinity)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -421,9 +416,7 @@ struct LeaveView: View {
                     )
             )
         }
-        .buttonStyle(PlainButtonStyle())
-        .scaleEffect(1.0)
-        .animation(.easeInOut(duration: 0.1), value: showingRequestTimeOff)
+        .actionCardGradientStyle(color: .orange)
     }
 }
 
@@ -660,5 +653,5 @@ struct LeaveTypeIcon: View {
 #Preview {
     let service = BambooHRService()
     let viewModel = LeaveViewModel(bambooHRService: service)
-    return LeaveView(viewModel: viewModel)
+    return LeaveView(viewModel: viewModel, selectedTab: .constant(2))
 }

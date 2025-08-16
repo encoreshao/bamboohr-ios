@@ -9,6 +9,7 @@ import SwiftUI
 
 struct PeopleView: View {
     @ObservedObject var viewModel: PeopleViewModel
+    @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isRefreshing = false
 
@@ -46,8 +47,13 @@ struct PeopleView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .foregroundColor(.green)
+                        if let tabInfo = FloatingNavigationBar.getTabInfo(for: selectedTab) {
+                            Image(systemName: tabInfo.activeIcon)
+                                .foregroundColor(tabInfo.color)
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .foregroundColor(.green)
+                        }
                         Text(viewModel.selectedEmployee != nil ?
                              localizationManager.localized(.peopleEmployeeDetails) :
                              localizationManager.localized(.peopleTitle))
@@ -76,8 +82,8 @@ struct PeopleView: View {
                             viewModel.loadEmployees()
                         } label: {
                             Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.blue)
                         }
+                        .navigationGradientButtonStyle(color: .green)
                         .disabled(viewModel.isLoading)
                     }
                 }
@@ -488,21 +494,10 @@ struct PeopleView: View {
                             .font(.headline)
                             .fontWeight(.medium)
                     }
-                    .foregroundColor(.white)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            colors: [.blue, .blue.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(25)
-                    .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .scaleEffect(1.0)
-                .animation(.easeInOut(duration: 0.1), value: true)
+                .compactGradientButtonStyle(color: .green)
             }
             .frame(maxWidth: .infinity)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -644,5 +639,5 @@ struct InfoDetailRow: View {
 #Preview {
     let service = BambooHRService()
     let viewModel = PeopleViewModel(bambooHRService: service)
-    return PeopleView(viewModel: viewModel)
+    return PeopleView(viewModel: viewModel, selectedTab: .constant(3))
 }

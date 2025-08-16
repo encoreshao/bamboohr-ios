@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: AccountSettingsViewModel
+    @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var showingApiKeyInfo = false
     @State private var showingClearConfirmation = false
@@ -27,7 +28,7 @@ struct SettingsView: View {
 
                     // Actions section
                     actionsSection
-                    
+
                     // General settings section
                     generalSettingsSection
 
@@ -44,8 +45,13 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        Image(systemName: "gear")
-                            .foregroundColor(.gray)
+                        if let tabInfo = FloatingNavigationBar.getTabInfo(for: selectedTab) {
+                            Image(systemName: tabInfo.activeIcon)
+                                .foregroundColor(tabInfo.color)
+                        } else {
+                            Image(systemName: "gearshape.fill")
+                                .foregroundColor(.gray)
+                        }
                         Text(localizationManager.localized(.settingsTitle))
                             .font(.headline)
                             .fontWeight(.semibold)
@@ -249,14 +255,8 @@ struct SettingsView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(viewModel.isTesting ? Color.gray : Color.blue)
-                )
             }
+            .primaryGradientButtonStyle(isDisabled: viewModel.isTesting || !viewModel.hasRequiredFields)
             .disabled(viewModel.isTesting || !viewModel.hasRequiredFields)
 
             // Clear Settings Button
@@ -270,14 +270,8 @@ struct SettingsView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.red)
-                )
             }
+            .destructiveGradientButtonStyle(isDisabled: !viewModel.hasValidSettings)
             .disabled(!viewModel.hasValidSettings)
         }
     }
@@ -473,5 +467,5 @@ struct InfoRow: View {
 }
 
 #Preview {
-    SettingsView(viewModel: AccountSettingsViewModel(bambooHRService: BambooHRService.shared))
+    SettingsView(viewModel: AccountSettingsViewModel(bambooHRService: BambooHRService.shared), selectedTab: .constant(4))
 }

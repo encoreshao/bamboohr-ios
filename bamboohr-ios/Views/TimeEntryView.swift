@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TimeEntryView: View {
     @ObservedObject var viewModel: TimeEntryViewModel
+    @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var showingDatePicker = false
     @FocusState private var isTextFieldFocused: Bool // 添加键盘焦点状态管理
@@ -36,8 +37,13 @@ struct TimeEntryView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        Image(systemName: "clock.circle.fill")
-                            .foregroundColor(.blue)
+                        if let tabInfo = FloatingNavigationBar.getTabInfo(for: selectedTab) {
+                            Image(systemName: tabInfo.activeIcon)
+                                .foregroundColor(tabInfo.color)
+                        } else {
+                            Image(systemName: "clock.circle.fill")
+                                .foregroundColor(.purple)
+                        }
                         Text(localizationManager.localized(.timeTitle))
                             .font(.headline)
                             .fontWeight(.semibold)
@@ -56,17 +62,10 @@ struct TimeEntryView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "calendar.circle.fill")
-                                .foregroundColor(.blue)
                             Text(localizationManager.localized(.timeToday))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.blue)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
                     }
+                    .navigationGradientButtonStyle(color: .blue)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -74,8 +73,8 @@ struct TimeEntryView: View {
                         viewModel.loadProjects()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.blue)
                     }
+                    .navigationGradientButtonStyle(color: .blue)
                     .disabled(viewModel.isLoading || viewModel.isSubmitting)
                 }
             }
@@ -327,8 +326,7 @@ struct TimeEntryView: View {
                                 showingDatePicker = false
                             }
                         }
-                        .buttonStyle(.bordered)
-                        .font(.caption)
+                        .compactGradientButtonStyle(color: .gray)
 
                         Button(getLocalizedText("今天", "Today")) {
                             withAnimation(.easeInOut(duration: 0.3)) {
@@ -342,8 +340,7 @@ struct TimeEntryView: View {
                                 showingDatePicker = false
                             }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .font(.caption)
+                        .compactGradientButtonStyle(color: .blue)
 
                         Button(getLocalizedText("明天", "Tomorrow")) {
                             if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
@@ -359,8 +356,7 @@ struct TimeEntryView: View {
                                 showingDatePicker = false
                             }
                         }
-                        .buttonStyle(.bordered)
-                        .font(.caption)
+                        .compactGradientButtonStyle(color: .gray)
                     }
                 }
                 .transition(.opacity.combined(with: .scale))
@@ -550,14 +546,8 @@ struct TimeEntryView: View {
                     .font(.headline)
                     .fontWeight(.semibold)
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(viewModel.isSubmitting ? Color.gray : Color.blue)
-            )
         }
+        .primaryGradientButtonStyle(isDisabled: viewModel.isSubmitting)
         .disabled(viewModel.isSubmitting)
         .animation(.easeInOut(duration: 0.2), value: viewModel.isSubmitting)
     }
@@ -856,5 +846,5 @@ struct WeeklyTimeChartView: View {
 #Preview {
     let service = BambooHRService()
     let viewModel = TimeEntryViewModel(bambooHRService: service)
-    return TimeEntryView(viewModel: viewModel)
+    return TimeEntryView(viewModel: viewModel, selectedTab: .constant(1))
 }

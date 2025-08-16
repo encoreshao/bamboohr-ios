@@ -47,13 +47,7 @@ struct TimesheetView: View {
                     selectedDate = Date()
                     loadTimesheetData()
                 }
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.blue)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(6)
+                .navigationGradientButtonStyle(color: .blue)
             }
         }
         .onAppear {

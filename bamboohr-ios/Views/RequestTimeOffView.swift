@@ -47,7 +47,7 @@ struct RequestTimeOffView: View {
                     Button(localizationManager.localized(.cancel)) {
                         dismiss()
                     }
-                    .foregroundColor(.orange)
+                    .navigationGradientButtonStyle(color: .gray)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {

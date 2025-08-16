@@ -29,7 +29,7 @@ struct bamboohr_iosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            AppRootView()
                 .modelContainer(sharedModelContainer)
                 .onAppear {
                     // Initialize localization

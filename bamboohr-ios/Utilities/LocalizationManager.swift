@@ -285,7 +285,7 @@ class LocalizationManager: ObservableObject {
             "en": [
                 // Tab titles
                 "tab_home": "Home",
-                "tab_time": "Time Tracking",
+                "tab_time": "Time Entry",
                 "tab_leave": "Time Off",
                 "tab_people": "People",
                 "tab_settings": "Settings",

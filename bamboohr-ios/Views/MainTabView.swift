@@ -17,41 +17,35 @@ struct MainTabView: View {
     @State private var selectedTab = 0
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(viewModel: userViewModel, leaveViewModel: leaveViewModel, timeEntryViewModel: timeEntryViewModel, selectedTab: $selectedTab)
-                .tabItem {
-                    Image(systemName: selectedTab == 0 ? "house.fill" : "house")
-                    Text(localizationManager.localized(.tabHome))
-                }
-                .tag(0)
+        FloatingTabView(selectedTab: $selectedTab) {
+            ZStack {
+                // Background for all views
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
 
-            TimeEntryView(viewModel: timeEntryViewModel)
-                .tabItem {
-                    Image(systemName: selectedTab == 1 ? "clock.fill" : "clock")
-                    Text(localizationManager.localized(.tabTime))
+                // Content based on selected tab
+                Group {
+                    switch selectedTab {
+                    case 0:
+                        HomeView(viewModel: userViewModel, leaveViewModel: leaveViewModel, timeEntryViewModel: timeEntryViewModel, selectedTab: $selectedTab)
+                    case 1:
+                        TimeEntryView(viewModel: timeEntryViewModel, selectedTab: $selectedTab)
+                    case 2:
+                        LeaveView(viewModel: leaveViewModel, selectedTab: $selectedTab)
+                    case 3:
+                        PeopleView(viewModel: peopleViewModel, selectedTab: $selectedTab)
+                    case 4:
+                        SettingsView(viewModel: accountSettingsViewModel, selectedTab: $selectedTab)
+                    default:
+                        HomeView(viewModel: userViewModel, leaveViewModel: leaveViewModel, timeEntryViewModel: timeEntryViewModel, selectedTab: $selectedTab)
+                    }
                 }
-                .tag(1)
-
-            LeaveView(viewModel: leaveViewModel)
-                .tabItem {
-                    Image(systemName: selectedTab == 2 ? "calendar.badge.clock" : "calendar")
-                    Text(localizationManager.localized(.tabLeave))
-                }
-                .tag(2)
-
-            PeopleView(viewModel: peopleViewModel)
-                .tabItem {
-                    Image(systemName: selectedTab == 3 ? "person.crop.circle.fill" : "person.crop.circle")
-                    Text(localizationManager.localized(.tabPeople))
-                }
-                .tag(3)
-
-            SettingsView(viewModel: accountSettingsViewModel)
-                .tabItem {
-                    Image(systemName: selectedTab == 4 ? "gearshape.fill" : "gear")
-                    Text(localizationManager.localized(.tabSettings))
-                }
-                .tag(4)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                ))
+                .animation(.easeInOut(duration: 0.3), value: selectedTab)
+            }
         }
         .withToast()
         .onAppear {
