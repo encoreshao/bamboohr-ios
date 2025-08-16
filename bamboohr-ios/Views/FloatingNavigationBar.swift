@@ -136,7 +136,7 @@ struct CreativeTabButton: View {
                         // Icon glow for selected state
                         if isSelected {
                             Image(systemName: tab.activeIcon)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(tab.color)
                                 .opacity(0.3)
                                 .blur(radius: 8)
@@ -145,17 +145,18 @@ struct CreativeTabButton: View {
 
                         // Main icon
                         Image(systemName: isSelected ? tab.activeIcon : tab.icon)
-                            .font(.system(size: isSelected ? 14 : 13, weight: isSelected ? .semibold : .medium))
+                            .font(.system(size: isSelected ? 20 : 14, weight: isSelected ? .semibold : .medium))
                             .foregroundColor(isSelected ? tab.color : tab.color.opacity(0.6))
                             .scaleEffect(hoverScale)
-                            .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.6), value: isSelected)
+                            .scaleEffect(isSelected ? 1.0 : 1.0) // Additional scale for selected state
+                            .animation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.2), value: isSelected)
                             .animation(.easeInOut(duration: 0.2), value: hoverScale)
                     }
 
                     // Dynamic text with enhanced styling
                     if !isSelected {
                         Text(getLocalizedTitle(tab.title))
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundColor(tab.color.opacity(0.7))
                             .transition(.asymmetric(
                                 insertion: .opacity.combined(with: .move(edge: .bottom)),
@@ -166,7 +167,7 @@ struct CreativeTabButton: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
             }
-            .frame(minWidth: 32, minHeight: 32)
+            .frame(minWidth: 40, minHeight: 40)
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(CreativeTabButtonStyle(isPressed: $isPressed))
