@@ -65,7 +65,7 @@ struct TimeEntryView: View {
                             Text(localizationManager.localized(.timeToday))
                         }
                     }
-                    .navigationGradientButtonStyle(color: .blue)
+                    .navigationGradientButtonStyle(color: .purple)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -74,7 +74,7 @@ struct TimeEntryView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .navigationGradientButtonStyle(color: .blue)
+                    .navigationGradientButtonStyle(color: .purple)
                     .disabled(viewModel.isLoading || viewModel.isSubmitting)
                 }
             }
@@ -108,7 +108,7 @@ struct TimeEntryView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "clock.circle.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
                     .font(.title3)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -134,7 +134,7 @@ struct TimeEntryView: View {
                         Text("\(viewModel.formattedTotalHours) \(localizationManager.localized(.homeHours))")
                             .font(.callout)
                             .fontWeight(.bold)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.purple)
                     }
                 }
             }
@@ -152,10 +152,10 @@ struct TimeEntryView: View {
                                 .foregroundColor(.secondary)
                             Text(formattedDate)
                                 .font(.caption2)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.purple)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.1))
+                                .background(Color.purple.opacity(0.1))
                                 .cornerRadius(4)
                         }
                         Spacer()
@@ -175,10 +175,10 @@ struct TimeEntryView: View {
 
                         Text(formattedDate)
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.purple)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.1))
+                            .background(Color.purple.opacity(0.1))
                             .cornerRadius(4)
                     }
                     .frame(maxWidth: .infinity, minHeight: 80)
@@ -258,10 +258,10 @@ struct TimeEntryView: View {
                 // 添加一个视觉指示器显示选择的日期
                 Text(formattedDate)
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
+                    .background(Color.purple.opacity(0.1))
                     .cornerRadius(6)
             }
 
@@ -276,7 +276,7 @@ struct TimeEntryView: View {
                         .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: showingDatePicker ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.blue)
+                        .foregroundColor(.purple)
                         .font(.system(size: 14, weight: .semibold))
                 }
                 .padding()
@@ -340,7 +340,7 @@ struct TimeEntryView: View {
                                 showingDatePicker = false
                             }
                         }
-                        .compactGradientButtonStyle(color: .blue)
+                        .compactGradientButtonStyle(color: .purple)
 
                         Button(getLocalizedText("明天", "Tomorrow")) {
                             if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
@@ -422,7 +422,7 @@ struct TimeEntryView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .tint(.blue)
+                .tint(.purple)
             }
         }
     }
@@ -474,7 +474,7 @@ struct TimeEntryView: View {
                                             .foregroundColor(.secondary)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
-                                            .background(Color.blue.opacity(0.1))
+                                            .background(Color.purple.opacity(0.1))
                                             .cornerRadius(4)
                                     }
                                 }
@@ -605,7 +605,7 @@ struct TimeEntryRowView: View {
                 Text("\(String(format: "%.1f", entry.hours))h")
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
 
                 Text(localizationManager.localized(.timeSubmitted))
                     .font(.caption2)
@@ -646,7 +646,7 @@ extension TimeEntryView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: "calendar.badge.clock")
-                        .foregroundColor(.blue)
+                        .foregroundColor(.purple)
                         .font(.title2)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -671,16 +671,16 @@ extension TimeEntryView {
                             Text(currentMonthHours)
                                 .font(.title3)
                                 .fontWeight(.bold)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.purple)
 
                             Text(getLocalizedText("小时", "hours"))
                                 .font(.caption)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.purple)
                         }
 
                         Image(systemName: "chevron.right")
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.purple)
                     }
                 }
             }
@@ -715,7 +715,7 @@ struct WeeklyTimeChartView: View {
                     VStack(spacing: 4) {
                         // 柱状条
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(dayData.isToday ? Color.blue : Color.blue.opacity(0.7))
+                            .fill(dayData.isToday ? Color.purple : Color.purple.opacity(0.7))
                             .frame(width: 35, height: max(4, dayData.height))
                             .overlay(
                                 // 点击区域

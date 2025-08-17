@@ -47,7 +47,7 @@ struct TimesheetView: View {
                     selectedDate = Date()
                     loadTimesheetData()
                 }
-                .navigationGradientButtonStyle(color: .blue)
+                .navigationGradientButtonStyle(color: .purple)
             }
         }
         .onAppear {
@@ -67,7 +67,7 @@ struct TimesheetView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
                     .font(.title2)
             }
 
@@ -86,7 +86,7 @@ struct TimesheetView: View {
                     }
                 }) {
                     Image(systemName: "chevron.right")
-                        .foregroundColor(.blue)
+                        .foregroundColor(.purple)
                         .font(.title2)
                 }
             } else {
@@ -138,7 +138,7 @@ struct TimesheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "calendar.circle.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
                     .font(.title3)
 
                 Text(getLocalizedText("本月概览", "Month Overview"))
@@ -154,7 +154,7 @@ struct TimesheetView: View {
                     Text("\(String(format: "%.1f", totalMonthHours)) \(getLocalizedText("小时", "hours"))")
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundColor(.blue)
+                        .foregroundColor(.purple)
                 }
             }
 
@@ -189,7 +189,7 @@ struct TimesheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "list.clipboard.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.purple)
                     .font(.title3)
 
                 Text(getLocalizedText("工时详情", "Time Details"))
@@ -319,7 +319,7 @@ struct CalendarDayView: View {
 
             if dayData.hasEntries {
                 Circle()
-                    .fill(Color.blue)
+                    .fill(Color.purple)
                     .frame(width: 4, height: 4)
             } else {
                 Circle()
@@ -331,7 +331,7 @@ struct CalendarDayView: View {
         .background(
             RoundedRectangle(cornerRadius: 4)
                 .fill(
-                    dayData.isToday ? Color.blue :
+                    dayData.isToday ? Color.purple :
                     (dayData.isWeekend ? Color(.systemGray5) : Color.clear)
                 )
         )
@@ -370,7 +370,7 @@ struct TimesheetDayRowView: View {
                         Text("\(String(format: "%.1f", dayData.totalHours)) \(getLocalizedText("小时", "hours"))")
                             .font(.subheadline)
                             .fontWeight(.bold)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.purple)
 
                         Text("\(dayData.entries.count) \(getLocalizedText("条记录", "entries"))")
                             .font(.caption)
@@ -379,7 +379,7 @@ struct TimesheetDayRowView: View {
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption)
-                        .foregroundColor(.blue)
+                        .foregroundColor(.purple)
                 }
             }
             .buttonStyle(PlainButtonStyle())
