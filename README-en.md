@@ -7,8 +7,8 @@ English | [中文](README.md)
 ## 🌟 Features
 
 - 🏠 **Smart Dashboard**: Display personal information, work statistics, and today's overview
-- ⏰ **Time Entry**: Convenient work time recording with project and task classification
-- 🏖️ **Team Leave**: Real-time view of team member leave schedules with avatar display
+- ⏰ **My Time**: Convenient work time recording with project and task classification
+- 🏖️ **Who's Out**: Real-time view of team member leave schedules with avatar display
 - ⚙️ **Settings Management**: Secure account configuration and connection testing
 - 🌍 **Multi-language Support**: Automatic switching between Chinese and English based on system language settings
 - 🔔 **Smart Notifications**: Elegant Toast message notification system
@@ -19,7 +19,7 @@ English | [中文](README.md)
 ### v2.0 New Features
 - ✨ **Multi-language Support**: Automatic language detection supporting Chinese and English
 - 🎯 **Toast Notification System**: Replace traditional popups with elegant message feedback
-- 👤 **User Avatar Display**: Real user avatars displayed on team leave page
+- 👤 **User Avatar Display**: Real user avatars displayed on Who's Out page
 - 🎨 **Interface Optimization**: Full-width project selection for better user experience
 - 📈 **Real Data**: Dashboard statistics based on actual work data calculations
 - 🔄 **Real-time Loading**: Automatic loading of corresponding time records when switching dates
@@ -42,13 +42,13 @@ bamboohr-ios/
 │   └── BambooHRService.swift  # BambooHR API service
 ├── ViewModels/                # View model layer (MVVM architecture)
 │   ├── UserViewModel.swift    # User data management
-│   ├── TimeEntryViewModel.swift # Time entry management
+│   ├── TimeEntryViewModel.swift # My Time management
 │   ├── LeaveViewModel.swift   # Leave data management
 │   └── AccountSettingsViewModel.swift # Settings management
 ├── Views/                     # User interface layer
 │   ├── MainTabView.swift      # Main navigation
 │   ├── HomeView.swift         # Dashboard view
-│   ├── TimeEntryView.swift    # Time entry interface
+│   ├── TimeEntryView.swift    # My Time interface
 │   ├── LeaveView.swift        # Leave management interface
 │   └── SettingsView.swift     # Settings interface
 └── Utilities/                 # Utility classes
@@ -115,7 +115,7 @@ class ToastManager: ObservableObject {
 }
 ```
 
-#### Time Entry Model (`TimeEntry.swift`)
+#### My Time Model (`TimeEntry.swift`)
 ```swift
 @Model class TimeEntry {
     var id: String
@@ -171,7 +171,7 @@ class BambooHRService {
 
 ### 🎨 **View Model Layer (`ViewModels/`)**
 
-#### Time Entry View Model (`TimeEntryViewModel.swift`)
+#### My Time View Model (`TimeEntryViewModel.swift`)
 - **Auto-loading**: Automatically load projects and time records on initialization
 - **Date Listening**: Automatically refresh records when switching dates
 - **Form Validation**: Smart project and task validation
@@ -197,10 +197,10 @@ class TimeEntryViewModel: ObservableObject {
 #### Dashboard View (`HomeView.swift`)
 - **Smart Statistics**: Work hours statistics based on real data
 - **User Information**: Avatar loading and personal information display
-- **Today's Overview**: Current work status and team leave status
+- **Today's Overview**: Current work status and Who's Out status
 - **Multi-language**: Complete Chinese and English interface
 
-#### Time Entry View (`TimeEntryView.swift`)
+#### My Time View (`TimeEntryView.swift`)
 - **Full-width Selector**: Project selection occupies full screen width
 - **Cascading Selection**: Smart Project→Task cascading
 - **Record Display**: Time record list for current date

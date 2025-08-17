@@ -285,13 +285,13 @@ class LocalizationManager: ObservableObject {
             "en": [
                 // Tab titles
                 "tab_home": "Home",
-                "tab_time": "Time Entry",
-                "tab_leave": "Time Off",
+                "tab_time": "My Time",
+                "tab_leave": "Who's Off",
                 "tab_people": "People",
                 "tab_settings": "Settings",
 
                 // Home screen
-                "home_title": "My Info",
+                "home_title": "Home",
                 "home_greeting_morning": "Good morning",
                 "home_greeting_afternoon": "Good afternoon",
                 "home_greeting_evening": "Good evening",
@@ -325,7 +325,7 @@ class LocalizationManager: ObservableObject {
                 "home_department_members": "Department Members",
 
                 // Time Entry screen
-                "time_title": "Time Entry",
+                "time_title": "My Time",
                 "time_date_label": "Date",
                 "time_hours_label": "Hours",
                 "time_project_label": "Project",
