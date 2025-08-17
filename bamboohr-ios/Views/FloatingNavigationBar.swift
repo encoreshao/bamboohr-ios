@@ -269,6 +269,7 @@ struct FloatingTabView<Content: View>: View {
     @Binding var selectedTab: Int
     let content: Content
     @State private var keyboardHeight: CGFloat = 0
+    @State private var isNavbarVisible: Bool = true
 
     init(selectedTab: Binding<Int>, @ViewBuilder content: () -> Content) {
         self._selectedTab = selectedTab
@@ -282,26 +283,42 @@ struct FloatingTabView<Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.bottom, 70) // Space for floating navigation bar
 
-            // Floating navigation at the bottom
-            VStack {
-                Spacer()
-                HStack {
+            // Floating navigation at the bottom - Always visible
+            if isNavbarVisible {
+                VStack {
                     Spacer()
-                    FloatingNavigationBar(selectedTab: $selectedTab)
-                        .offset(y: keyboardHeight > 0 ? keyboardHeight + 80 : 0)
-                        .animation(.easeInOut(duration: 0.3), value: keyboardHeight)
-                    Spacer()
+                    HStack {
+                        Spacer()
+                        FloatingNavigationBar(selectedTab: $selectedTab)
+                            .offset(y: keyboardHeight > 0 ? min(-keyboardHeight + 60, -20) : 0)
+                            .animation(.easeInOut(duration: 0.3), value: keyboardHeight)
+                            .zIndex(999) // Ensure navbar stays on top
+                        Spacer()
+                    }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
-            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                keyboardHeight = keyboardFrame.height
+            withAnimation(.easeInOut(duration: 0.3)) {
+                if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                    keyboardHeight = keyboardFrame.height
+                }
+                // Ensure navbar stays visible when keyboard appears
+                isNavbarVisible = true
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardHeight = 0
+            withAnimation(.easeInOut(duration: 0.3)) {
+                keyboardHeight = 0
+                // Ensure navbar stays visible when keyboard disappears
+                isNavbarVisible = true
+            }
+        }
+        .onAppear {
+            // Ensure navbar is visible on appear
+            isNavbarVisible = true
         }
     }
 }
