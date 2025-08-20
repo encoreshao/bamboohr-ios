@@ -13,7 +13,16 @@ struct HomeView: View {
     @ObservedObject var timeEntryViewModel: TimeEntryViewModel
     @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
+    @StateObject private var celebrationViewModel: CelebrationViewModel
     @State private var isRefreshing = false
+
+    init(viewModel: UserViewModel, leaveViewModel: LeaveViewModel, timeEntryViewModel: TimeEntryViewModel, selectedTab: Binding<Int>) {
+        self.viewModel = viewModel
+        self.leaveViewModel = leaveViewModel
+        self.timeEntryViewModel = timeEntryViewModel
+        self._selectedTab = selectedTab
+        self._celebrationViewModel = StateObject(wrappedValue: CelebrationViewModel(bambooHRService: BambooHRService.shared))
+    }
 
     var body: some View {
         NavigationView {
@@ -27,6 +36,10 @@ struct HomeView: View {
                         LazyVStack(spacing: 20) {
                             userProfileSection(user: user)
                             quickStatsSection(user: user)
+
+                            // Celebrations section
+                            CelebrationsSection(viewModel: celebrationViewModel)
+
                             myTimeOffRequestsSection
                             todayOverviewSection
                         }
@@ -363,62 +376,188 @@ struct HomeView: View {
 
     // MARK: - Today Overview Section
     private var todayOverviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "calendar.circle.fill")
-                    .foregroundColor(.blue)
-                Text(localizationManager.localized(.homeTodayOverview))
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                Spacer()
-                Text(todayDateString)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+        VStack(spacing: 20) {
+            // Enhanced Header with Weather-like Design
+            VStack(spacing: 16) {
+                HStack {
+                    // Animated time-based icon with glow effect
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: getTimeGradientColors(),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 50, height: 50)
+                            .shadow(color: getTimeGradientColors().first?.opacity(0.4) ?? .blue.opacity(0.4), radius: 10, x: 0, y: 5)
 
-            VStack(spacing: 8) {
-                QuickInfoRow(
-                    icon: "clock.arrow.circlepath",
-                    title: localizationManager.localized(.homeWorkStatus),
-                    value: getWorkStatusText(),
-                    valueColor: getWorkStatusColor(),
-                    description: getWorkStatusDescription()
-                )
+                        Image(systemName: currentTimeIcon)
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.white)
+                            .symbolEffect(.pulse.byLayer, options: .repeating)
+                    }
 
-                QuickInfoRow(
-                    icon: "person.2.badge.minus",
-                    title: localizationManager.localized(.homeOnLeave),
-                    value: "\(getTodayLeaveCount()) \(localizationManager.localized(.homePeople))",
-                    valueColor: .orange,
-                    description: localizationManager.localized(.homeViewDetails)
-                ) {
-                    // 点击跳转到休假页面
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        selectedTab = 2
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(localizationManager.localized(.homeTodayOverview))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.primary, .primary.opacity(0.7)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+
+                        Text(getFormattedDateWithDay())
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                    }
+
+                    Spacer()
+
+                    // Current time display
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(getCurrentTime())
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+
+                        Text(getGreetingBasedOnTime())
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
                     }
                 }
 
-                // 删除今日任务行，因为没有真实数据
+                // Weather-like status bar
+                HStack(spacing: 16) {
+                    // Work status indicator
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(getWorkStatusColor())
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(1.2)
+                            .shadow(color: getWorkStatusColor().opacity(0.6), radius: 4, x: 0, y: 2)
+
+                        Text(getWorkStatusText())
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(getWorkStatusColor())
+                    }
+
+                    Spacer()
+
+                    // Temperature-like indicator (could be hours worked, etc.)
+                    Text("Week: \(String(format: "%.0f", getCurrentWeeklyHours()))h")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            .background(
+                ZStack {
+                    // Dynamic background based on time of day
+                    LinearGradient(
+                        colors: getBackgroundGradientColors(),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+
+                    // Subtle pattern overlay
+                    GeometryReader { geometry in
+                        Path { path in
+                            let width = geometry.size.width
+                            let height = geometry.size.height
+
+                            // Create subtle wave pattern
+                            path.move(to: CGPoint(x: 0, y: height * 0.7))
+                            path.addCurve(
+                                to: CGPoint(x: width, y: height * 0.6),
+                                control1: CGPoint(x: width * 0.3, y: height * 0.9),
+                                control2: CGPoint(x: width * 0.7, y: height * 0.3)
+                            )
+                            path.addLine(to: CGPoint(x: width, y: height))
+                            path.addLine(to: CGPoint(x: 0, y: height))
+                            path.closeSubpath()
+                        }
+                        .fill(Color.white.opacity(0.1))
+                    }
+                }
+            )
+            .cornerRadius(24)
+            .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+
+            // Enhanced Info Cards Grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], spacing: 16) {
+                // Work Status Card
+                InfoCard(
+                    icon: "clock.arrow.circlepath",
+                    title: localizationManager.localized(.homeWorkStatus),
+                    value: getWorkStatusText(),
+                    subtitle: getWorkStatusDescription(),
+                    color: getWorkStatusColor(),
+                    gradientColors: [getWorkStatusColor(), getWorkStatusColor().opacity(0.7)],
+                    iconBackground: getWorkStatusColor().opacity(0.15)
+                )
+
+                // Team Status Card
+                InfoCard(
+                    icon: "person.2.badge.minus",
+                    title: localizationManager.localized(.homeOnLeave),
+                    value: "\(getTodayLeaveCount())",
+                    subtitle: localizationManager.localized(.homePeople),
+                    color: .orange,
+                    gradientColors: [.orange, .red.opacity(0.8)],
+                    iconBackground: .orange.opacity(0.15),
+                    action: {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            selectedTab = 2
+                        }
+                    }
+                )
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        )
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Helper Methods
 
-    // 过滤当前用户的休假记录
+    // 过滤当前用户的休假记录，只显示正在进行或未来的请求
     private var myLeaveEntries: [BambooLeaveInfo] {
         guard let user = viewModel.user, let currentUserId = Int(user.id) else {
             return []
         }
-        return leaveViewModel.leaveEntries.filter { entry in
-            entry.employeeId == currentUserId
-        }
+        let today = Calendar.current.startOfDay(for: Date())
+
+        return leaveViewModel.leaveEntries
+            .filter { entry in
+                guard entry.employeeId == currentUserId else { return false }
+
+                // 只显示正在进行中或未来的请求（结束日期在今天或之后）
+                if let endDate = entry.endDate {
+                    let endOfDay = Calendar.current.startOfDay(for: endDate)
+                    return endOfDay >= today
+                }
+
+                // 如果没有结束日期信息，则保留该记录
+                return true
+            }
+            .sorted { entry1, entry2 in
+                // 按开始日期排序，最近的请求排在前面
+                guard let start1 = entry1.startDate, let start2 = entry2.startDate else {
+                    return false
+                }
+                return start1 < start2
+            }
     }
 
     // 计算今天的休假人数（与LeaveView保持一致）
@@ -479,10 +618,67 @@ struct HomeView: View {
         return localizationManager.currentLanguage == "zh-Hans" ? chinese : english
     }
 
+    // MARK: - Enhanced Helper Methods for New Design
+
+    private func getTimeGradientColors() -> [Color] {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:
+            return [.orange, .yellow]  // Morning sunrise
+        case 12..<17:
+            return [.blue, .cyan]      // Afternoon sky
+        case 17..<20:
+            return [.orange, .red]     // Evening sunset
+        default:
+            return [.indigo, .purple]  // Night
+        }
+    }
+
+    private func getBackgroundGradientColors() -> [Color] {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:
+            return [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)]
+        case 12..<17:
+            return [Color.blue.opacity(0.1), Color.cyan.opacity(0.05)]
+        case 17..<20:
+            return [Color.orange.opacity(0.1), Color.red.opacity(0.05)]
+        default:
+            return [Color.indigo.opacity(0.1), Color.purple.opacity(0.05)]
+        }
+    }
+
+    private func getCurrentTime() -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: Date())
+    }
+
+    private func getFormattedDateWithDay() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: Date())
+    }
+
+    private func getGreetingBasedOnTime() -> String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:
+            return getLocalizedText("早晨", "Morning")
+        case 12..<17:
+            return getLocalizedText("下午", "Afternoon")
+        case 17..<20:
+            return getLocalizedText("傍晚", "Evening")
+        default:
+            return getLocalizedText("夜晚", "Night")
+        }
+    }
+
     private func refreshData() async {
         isRefreshing = true
         viewModel.loadUserInfo()
         leaveViewModel.loadLeaveInfo()
+        celebrationViewModel.loadCelebrations()
         isRefreshing = false
     }
 
@@ -800,6 +996,17 @@ struct TimeOffRequestRow: View {
                         )
                         .foregroundColor(statusColor)
 
+                    // Status label
+                    Text(statusText)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(statusColor.opacity(0.1))
+                        )
+                        .foregroundColor(statusColor)
+
                     Spacer()
 
                     if let duration = request.leaveDuration {
@@ -819,8 +1026,51 @@ struct TimeOffRequestRow: View {
     }
 
     private var statusColor: Color {
-        // You can customize this based on request status
-        return .blue
+        let today = Calendar.current.startOfDay(for: Date())
+
+        guard let startDate = request.startDate, let endDate = request.endDate else {
+            return .gray
+        }
+
+        let startOfDay = Calendar.current.startOfDay(for: startDate)
+        let endOfDay = Calendar.current.startOfDay(for: endDate)
+
+        // Check if request is currently active (today is within the date range)
+        if startOfDay <= today && endOfDay >= today {
+            return .green  // Currently on leave
+        }
+        // Check if request is upcoming (starts in the future)
+        else if startOfDay > today {
+            return .blue   // Upcoming leave
+        }
+        // This should not happen since we filter out past requests, but just in case
+        else {
+            return .gray   // Past leave (should be filtered out)
+        }
+    }
+
+    private var statusText: String {
+        let today = Calendar.current.startOfDay(for: Date())
+
+        guard let startDate = request.startDate, let endDate = request.endDate else {
+            return "Unknown"
+        }
+
+        let startOfDay = Calendar.current.startOfDay(for: startDate)
+        let endOfDay = Calendar.current.startOfDay(for: endDate)
+
+        // Check if request is currently active (today is within the date range)
+        if startOfDay <= today && endOfDay >= today {
+            return "Active"
+        }
+        // Check if request is upcoming (starts in the future)
+        else if startOfDay > today {
+            return "Upcoming"
+        }
+        // This should not happen since we filter out past requests, but just in case
+        else {
+            return "Past"
+        }
     }
 
     private var dateRangeText: String {
@@ -839,6 +1089,141 @@ struct TimeOffRequestRow: View {
         }
 
         return "Unknown"
+    }
+}
+
+// MARK: - Enhanced Info Card Component
+struct InfoCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let subtitle: String
+    let color: Color
+    let gradientColors: [Color]
+    let iconBackground: Color
+    let action: (() -> Void)?
+
+    @State private var isPressed = false
+
+    init(icon: String, title: String, value: String, subtitle: String, color: Color, gradientColors: [Color], iconBackground: Color, action: (() -> Void)? = nil) {
+        self.icon = icon
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.color = color
+        self.gradientColors = gradientColors
+        self.iconBackground = iconBackground
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: {
+            if let action = action {
+                action()
+            }
+        }) {
+            VStack(alignment: .leading, spacing: 16) {
+                // Icon with enhanced styling
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(iconBackground)
+                            .frame(width: 40, height: 40)
+                            .shadow(color: color.opacity(0.3), radius: 6, x: 0, y: 3)
+
+                        Image(systemName: icon)
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(color)
+                            .symbolEffect(.bounce.byLayer, options: .nonRepeating, value: isPressed)
+                    }
+
+                    Spacer()
+
+                    if action != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(color.opacity(0.6))
+                            .fontWeight(.medium)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    // Value with gradient
+                    Text(value)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: gradientColors,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+
+                    // Title
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+
+                    // Subtitle
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(20)
+            .background(
+                ZStack {
+                    // Base background
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+
+                    // Gradient border effect
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [color.opacity(0.3), color.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
+
+                    // Subtle inner glow
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.05), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+            )
+            .scaleEffect(isPressed ? 0.98 : 1.0)
+            .shadow(
+                color: color.opacity(isPressed ? 0.3 : 0.15),
+                radius: isPressed ? 8 : 12,
+                x: 0,
+                y: isPressed ? 4 : 6
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(action == nil)
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = false
+                }
+            }
+        }
     }
 }
 

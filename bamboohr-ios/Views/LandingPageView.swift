@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WebKit
 
 struct LandingPageView: View {
     @State private var isAnimating = false
@@ -22,7 +23,7 @@ struct LandingPageView: View {
     @State private var showCharacterAnimation: Bool = false
     @State private var characterOpacity: Double = 0.0
 
-    private let ekoheCharacters = ["E", "k", "o", "h", "E"]
+    private let ekoheCharacters = ["E", "K", "O", "H", "E"]
 
     let onComplete: () -> Void
 
@@ -355,6 +356,27 @@ struct Particle {
     let size: CGFloat
     let opacity: Double
     let duration: Double
+}
+
+// MARK: - Ekohe SVG View
+struct EkoheSVGView: UIViewRepresentable {
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.backgroundColor = UIColor.clear
+        webView.isOpaque = false
+        webView.scrollView.isScrollEnabled = false
+
+        // Load the SVG from URL
+        let svgURL = URL(string: "https://cdn.ekohe.com/cms-assets/Ekohe_Gradient_Icon_1_4d1f041f5c.svg")!
+        let request = URLRequest(url: svgURL)
+        webView.load(request)
+
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        // No updates needed
+    }
 }
 
 #Preview {

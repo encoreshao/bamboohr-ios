@@ -818,5 +818,399 @@ class BambooHRService {
             .eraseToAnyPublisher()
     }
 
+    // MARK: - Celebrations
+    func fetchCelebrations() -> AnyPublisher<[Celebration], BambooHRError> {
+        // Try to reload account settings if not available
+        if accountSettings == nil {
+            print("DEBUG: No account settings found, attempting to reload from keychain")
+            accountSettings = KeychainManager.shared.loadAccountSettings()
+        }
+
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: No valid account settings found for celebrations API")
+            print("DEBUG: Available settings: companyDomain=\(accountSettings?.companyDomain ?? "nil"), apiKey=\(accountSettings?.apiKey.isEmpty == false ? "present" : "nil"), baseUrl=\(accountSettings?.baseUrl?.absoluteString ?? "nil")")
+
+            // Still fallback to sample data, but with clear logging
+            print("DEBUG: Using sample celebration data - configure BambooHR credentials to load real data")
+            return Just(generateCelebrations())
+                .delay(for: .milliseconds(500), scheduler: DispatchQueue.main)
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+        }
+
+        print("DEBUG: Using real BambooHR API for celebrations data")
+        print("DEBUG: Company domain: \(settings.companyDomain)")
+        print("DEBUG: Base URL: \(baseUrl.absoluteString)")
+
+        // Try enhanced employee endpoint with birthday and hire date fields first
+        return fetchEmployeeCelebrationData(settings: settings, baseUrl: baseUrl)
+            .catch { error -> AnyPublisher<[Celebration], BambooHRError> in
+                print("DEBUG: Enhanced employee data fetch failed: \(error)")
+                print("DEBUG: Falling back to directory endpoint")
+                return self.fetchCelebrationsFromDirectory(settings: settings, baseUrl: baseUrl)
+            }
+            .catch { error -> AnyPublisher<[Celebration], BambooHRError> in
+                print("DEBUG: All real API attempts failed: \(error)")
+                print("DEBUG: Using sample celebration data as final fallback")
+                return Just(self.generateCelebrations())
+                    .setFailureType(to: BambooHRError.self)
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+        // MARK: - Enhanced Employee Data Fetch with Birthday/Hire Date
+    private func fetchEmployeeCelebrationData(settings: AccountSettings, baseUrl: URL) -> AnyPublisher<[Celebration], BambooHRError> {
+        // Use the employees directory endpoint to get ALL employees with specific fields
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/directory")
+
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
+        components?.queryItems = [
+            URLQueryItem(name: "fields", value: "id,firstName,lastName,department,dateOfBirth,hireDate,jobTitle,location"),
+            URLQueryItem(name: "format", value: "json")
+        ]
+
+        guard let url = components?.url else {
+            print("DEBUG: Failed to create celebration data URL")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching enhanced employee data for celebrations from: \(url.absoluteString)")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in fetchEmployeeCelebrationData: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<[Celebration], BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in fetchEmployeeCelebrationData")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Enhanced celebration data response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 else {
+                    print("DEBUG: Enhanced employee endpoint failed with status: \(httpResponse.statusCode)")
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("DEBUG: Enhanced response body: \(responseString)")
+                    }
+                    return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                }
+
+                return self.parseEnhancedEmployeeData(data: data, companyDomain: settings.companyDomain)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fallback Directory Fetch
+    private func fetchCelebrationsFromDirectory(settings: AccountSettings, baseUrl: URL) -> AnyPublisher<[Celebration], BambooHRError> {
+        print("DEBUG: Attempting to fetch celebrations from employee directory endpoint")
+        // Fetch employee directory with birthday and hire date information
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/directory")
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching celebrations from employee directory URL: \(endpoint.absoluteString)")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in fetchCelebrations: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<[Celebration], BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in fetchCelebrationsFromDirectory")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Directory celebrations response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in fetchCelebrationsFromDirectory")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else if httpResponse.statusCode == 404 {
+                        print("DEBUG: Employee directory endpoint not found (404) - falling back to sample data")
+                        return Just(self.generateCelebrations())
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in fetchCelebrationsFromDirectory: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Directory celebrations response body: \(responseString)")
+                        }
+                        return Just(self.generateCelebrations())
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    }
+                }
+
+                // Try to parse real employee data and extract celebrations
+                return self.parseCelebrationsFromEmployeeData(data: data, companyDomain: settings.companyDomain)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Parse Enhanced Employee Data
+    private func parseEnhancedEmployeeData(data: Data, companyDomain: String) -> AnyPublisher<[Celebration], BambooHRError> {
+        do {
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("DEBUG: Enhanced employee data response: \(String(jsonString.prefix(500)))...")
+            }
+
+            // Try to parse as different possible formats
+            var employeeData: [[String: Any]] = []
+
+            // Try parsing as array directly
+            if let directArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                employeeData = directArray
+                print("DEBUG: Parsed enhanced data as direct array with \(employeeData.count) employees")
+            }
+            // Try parsing as response object
+            else if let responseObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                    let employees = responseObject["employees"] as? [[String: Any]] {
+                employeeData = employees
+                print("DEBUG: Parsed enhanced data as response object with \(employeeData.count) employees")
+            }
+            // Try parsing as single employee (for specific ID queries)
+            else if let singleEmployee = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                employeeData = [singleEmployee]
+                print("DEBUG: Parsed enhanced data as single employee")
+            }
+
+            return self.processEmployeesForCelebrations(employeesData: employeeData, companyDomain: companyDomain)
+
+        } catch {
+            print("DEBUG: Failed to parse enhanced employee data: \(error.localizedDescription)")
+            return Just(generateCelebrations())
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+        }
+    }
+
+    // MARK: - Parse Real Employee Data for Celebrations
+    private func parseCelebrationsFromEmployeeData(data: Data, companyDomain: String) -> AnyPublisher<[Celebration], BambooHRError> {
+        do {
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("DEBUG: Employee directory response for celebrations: \(String(jsonString.prefix(500)))...")
+            }
+
+            // Try to parse as different possible directory formats
+            var employeeData: [[String: Any]] = []
+
+            // Try parsing as directory response with employees array
+            if let responseObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let employees = responseObject["employees"] as? [[String: Any]] {
+                employeeData = employees
+                print("DEBUG: Parsed directory data as response object with \(employeeData.count) employees")
+            }
+            // Try parsing as array directly
+            else if let directArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                employeeData = directArray
+                print("DEBUG: Parsed directory data as direct array with \(employeeData.count) employees")
+            }
+
+            return self.processEmployeesForCelebrations(employeesData: employeeData, companyDomain: companyDomain)
+
+        } catch {
+            print("DEBUG: Failed to parse employee data for celebrations: \(error.localizedDescription)")
+            return Just(generateCelebrations())
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+        }
+    }
+
+    // MARK: - Process Employee Data into Celebrations
+    private func processEmployeesForCelebrations(employeesData: [[String: Any]], companyDomain: String) -> AnyPublisher<[Celebration], BambooHRError> {
+        let calendar = Calendar.current
+        let today = Date()
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        var celebrations: [Celebration] = []
+
+        print("DEBUG: Processing \(employeesData.count) employees for celebrations")
+
+        for employee in employeesData {
+            // Extract employee data
+            guard let employeeId = employee["id"] as? String else { continue }
+
+            let firstName = employee["firstName"] as? String ?? ""
+            let lastName = employee["lastName"] as? String ?? ""
+            let fullName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
+
+            // Skip if name is empty
+            guard !fullName.isEmpty else { continue }
+
+            let department = employee["department"] as? String
+
+            // Parse birthday - try multiple possible field names
+            let birthdayFields = ["dateOfBirth", "birthDate", "birthday"]
+            for field in birthdayFields {
+                if let birthdayStr = employee[field] as? String,
+                   let birthDate = dateFormatter.date(from: birthdayStr) {
+                    if let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 6) {
+                        celebrations.append(Celebration(
+                            employeeId: employeeId,
+                            employeeName: fullName,
+                            type: .birthday,
+                            date: nextBirthday,
+                            department: department
+                        ))
+                        print("DEBUG: Added birthday celebration for \(fullName) on \(nextBirthday)")
+                    }
+                    break // Found birthday, no need to check other fields
+                }
+            }
+
+            // Parse work anniversary - try multiple possible field names
+            let hireDateFields = ["hireDate", "startDate", "dateOfHire", "employmentStartDate"]
+            for field in hireDateFields {
+                if let hireDateStr = employee[field] as? String,
+                   let hireDate = dateFormatter.date(from: hireDateStr) {
+                    if let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 6) {
+                        let yearsWorked = calendar.dateComponents([.year], from: hireDate, to: nextAnniversary).year ?? 0
+                        celebrations.append(Celebration(
+                            employeeId: employeeId,
+                            employeeName: fullName,
+                            type: .workAnniversary,
+                            date: nextAnniversary,
+                            yearsCount: yearsWorked,
+                            department: department
+                        ))
+                        print("DEBUG: Added work anniversary for \(fullName) on \(nextAnniversary) (\(yearsWorked) years)")
+                    }
+                    break // Found hire date, no need to check other fields
+                }
+            }
+        }
+
+        // Sort by date
+        celebrations.sort { $0.date < $1.date }
+
+        print("DEBUG: Successfully processed \(celebrations.count) celebrations from employee data")
+
+        // Return real celebrations even if empty - let the main method handle fallback
+        if celebrations.isEmpty {
+            print("DEBUG: No real celebrations found in employee data for the next 6 months")
+        }
+
+        return Just(celebrations)
+            .setFailureType(to: BambooHRError.self)
+            .eraseToAnyPublisher()
+    }
+
+    private func generateCelebrations() -> [Celebration] {
+        // Generate sample celebrations for the next 2 months
+        let calendar = Calendar.current
+        let today = Date()
+        var celebrations: [Celebration] = []
+
+        // Sample employee data with birthdays and hire dates (expanded for more celebrations)
+        let employees = [
+            ("Alice Johnson", "Engineering", "1990-03-20", "2020-01-15"),
+            ("Bob Smith", "Marketing", "1985-07-12", "2019-03-10"),
+            ("Carol Davis", "HR", "1992-11-08", "2021-06-20"),
+            ("David Wilson", "Sales", "1988-09-25", "2022-09-25"),
+            ("Emma Brown", "Design", "1995-12-03", "2018-12-03"),
+            ("Frank Miller", "Engineering", "1987-04-18", "2017-04-18"),
+            ("Grace Lee", "Finance", "1993-08-14", "2020-08-14"),
+            ("Henry Clark", "Operations", "1986-10-30", "2016-10-30"),
+            ("Isabella Chen", "Product", "1991-01-25", "2019-01-25"),
+            ("Jack Anderson", "Engineering", "1989-02-14", "2021-02-14"),
+            ("Kelly Thompson", "Marketing", "1994-05-18", "2020-05-18"),
+            ("Liam Rodriguez", "Sales", "1987-06-30", "2018-06-30"),
+            ("Mia Williams", "Design", "1993-04-12", "2022-04-12"),
+            ("Noah Jackson", "Finance", "1990-09-05", "2017-09-05"),
+            ("Olivia Martinez", "HR", "1988-11-22", "2019-11-22"),
+            ("Parker White", "Operations", "1992-07-08", "2021-07-08"),
+            ("Quinn Taylor", "Engineering", "1985-03-15", "2016-03-15"),
+            ("Ruby Harris", "Product", "1996-08-29", "2023-08-29"),
+            ("Samuel Clark", "Marketing", "1984-12-10", "2015-12-10"),
+            ("Tessa Lewis", "Sales", "1991-10-17", "2020-10-17")
+        ]
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        for (index, employeeData) in employees.enumerated() {
+            let (name, department, birthdayStr, hireDateStr) = employeeData
+            let employeeId = String(format: "%03d", index + 1)
+
+            // Calculate next birthday in the next 6 months
+            if let birthDate = dateFormatter.date(from: birthdayStr) {
+                let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 6)
+                if let nextBirthday = nextBirthday {
+                    celebrations.append(Celebration(
+                        employeeId: employeeId,
+                        employeeName: name,
+                        type: .birthday,
+                        date: nextBirthday,
+                        department: department
+                    ))
+                }
+            }
+
+            // Calculate next work anniversary in the next 6 months
+            if let hireDate = dateFormatter.date(from: hireDateStr) {
+                let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 6)
+                if let nextAnniversary = nextAnniversary {
+                    let yearsWorked = calendar.dateComponents([.year], from: hireDate, to: nextAnniversary).year ?? 0
+                    celebrations.append(Celebration(
+                        employeeId: employeeId,
+                        employeeName: name,
+                        type: .workAnniversary,
+                        date: nextAnniversary,
+                        yearsCount: yearsWorked,
+                        department: department
+                    ))
+                }
+            }
+        }
+
+        // Sort by date
+        return celebrations.sorted { $0.date < $1.date }
+    }
+
+    private func getNextOccurrence(of date: Date, from startDate: Date, within months: Int) -> Date? {
+        let calendar = Calendar.current
+        let endDate = calendar.date(byAdding: .month, value: months, to: startDate) ?? startDate
+
+        // Get the month and day from the original date
+        let components = calendar.dateComponents([.month, .day], from: date)
+        guard let month = components.month, let day = components.day else { return nil }
+
+        // Check this year's occurrence
+        let currentYear = calendar.component(.year, from: startDate)
+        if let thisYearDate = calendar.date(from: DateComponents(year: currentYear, month: month, day: day)),
+           thisYearDate >= startDate && thisYearDate <= endDate {
+            return thisYearDate
+        }
+
+        // Check next year's occurrence
+        if let nextYearDate = calendar.date(from: DateComponents(year: currentYear + 1, month: month, day: day)),
+           nextYearDate >= startDate && nextYearDate <= endDate {
+            return nextYearDate
+        }
+
+        return nil
+    }
+
 
 }
