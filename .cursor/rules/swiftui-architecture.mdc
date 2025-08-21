@@ -1,0 +1,32 @@
+---
+description: SwiftUI and MVVM architecture patterns for BambooHR iOS app
+globs: ["Views/**/*.swift", "ViewModels/**/*.swift"]
+alwaysApply: false
+---
+
+# SwiftUI Architecture Patterns
+
+## MVVM Implementation
+- Use `@StateObject` for view model initialization in views
+- Use `@Published` properties in view models for UI binding
+- Follow the existing service pattern for API calls
+- Use the existing utilities (ToastManager, KeychainManager, etc.)
+- Implement proper loading and error states in views
+
+## View Organization
+- One view per file (unless closely related)
+- Keep view files focused and composable
+- Extract complex views into separate components
+- Use meaningful file names that match the primary view
+
+## Common Patterns in This Project
+- Use existing `BambooHRService` for API integration
+- Use `KeychainManager` for secure storage
+- Use `ToastManager` for user notifications
+- Use `LocalizationManager` for internationalization
+- Implement proper async/await patterns for network calls
+
+## File Organization
+- Group related functionality in appropriate directories
+- Follow existing project structure conventions
+- Use proper preview providers for SwiftUI previews

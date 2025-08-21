@@ -1,0 +1,52 @@
+---
+description: Core iOS project standards and build requirements for BambooHR iOS app
+globs: ["**/*.swift", "**/*.xcodeproj/**", "**/*.xcworkspace/**"]
+alwaysApply: true
+---
+
+# BambooHR iOS Project Standards
+
+## Build Requirements
+- **CRITICAL**: Every new feature and hotfix MUST ensure the build passes before committing
+- Always run `Cmd+B` to build the project after making changes
+- Fix any compilation errors, warnings, or linter issues before proceeding
+- Test on both simulator and device when possible
+
+## Swift Coding Standards
+
+### Code Style
+- Use Swift naming conventions (camelCase for variables/functions, PascalCase for types)
+- Follow SwiftUI best practices for view composition
+- Use meaningful variable and function names
+- Add proper documentation comments for public APIs
+- Prefer `let` over `var` when values don't change
+- Use type inference when the type is obvious
+
+### Architecture Guidelines
+- Follow MVVM pattern consistently
+- Place models in `Models/` directory
+- Place view models in `ViewModels/` directory
+- Place views in `Views/` directory
+- Place services in `Services/` directory
+- Place utilities in `Utilities/` directory
+
+### SwiftUI Best Practices
+- Use `@State` for view-local state
+- Use `@StateObject` for view model initialization
+- Use `@ObservedObject` for view model dependencies
+- Prefer `@Published` properties in view models for UI updates
+- Extract complex views into separate components
+- Use proper preview providers for SwiftUI previews
+
+### Error Handling
+- Use proper error handling with `do-catch` blocks
+- Create custom error types when appropriate
+- Provide user-friendly error messages
+- Log errors appropriately for debugging
+
+## Before Submitting Code
+1. **Build Check**: Ensure `Cmd+B` builds successfully
+2. **Warning Check**: Fix all compiler warnings
+3. **Test Check**: Run unit and UI tests
+4. **Code Review**: Self-review your changes
+5. **Documentation**: Update comments and documentation as needed
