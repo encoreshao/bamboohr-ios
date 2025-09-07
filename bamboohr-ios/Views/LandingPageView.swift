@@ -23,6 +23,16 @@ struct LandingPageView: View {
     @State private var showCharacterAnimation: Bool = false
     @State private var characterOpacity: Double = 0.0
 
+    // Enhanced animation states
+    @State private var morphingScale: CGFloat = 1.0
+    @State private var rippleEffect: CGFloat = 0.0
+    @State private var breathingEffect: CGFloat = 1.0
+    @State private var colorShift: Double = 0.0
+    @State private var waveOffset: CGFloat = 0.0
+    @State private var sparkleOpacity: Double = 0.0
+    @State private var logoBlur: CGFloat = 0.0
+    @State private var energyPulse: CGFloat = 1.0
+
     private let ekoheCharacters = ["E", "K", "O", "H", "E"]
 
     let onComplete: () -> Void
@@ -53,33 +63,61 @@ struct LandingPageView: View {
                 VStack(spacing: 24) {
                                         // App Icon with enhanced animations
                     ZStack {
-                        // Outer glow ring
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [Color.blue.opacity(glowIntensity), Color.purple.opacity(glowIntensity)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 4
-                            )
-                            .frame(width: 160, height: 160)
-                            .rotationEffect(.degrees(logoRotation))
-                            .animation(.linear(duration: 8).repeatForever(autoreverses: false), value: logoRotation)
+                        // Enhanced ripple effects
+                        ForEach(0..<3, id: \.self) { index in
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.blue.opacity(glowIntensity * (0.8 - Double(index) * 0.2)),
+                                            Color.purple.opacity(glowIntensity * (0.6 - Double(index) * 0.15)),
+                                            Color.cyan.opacity(glowIntensity * (0.4 - Double(index) * 0.1))
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 3 - CGFloat(index)
+                                )
+                                .frame(width: 140 + CGFloat(index) * 20 + rippleEffect,
+                                       height: 140 + CGFloat(index) * 20 + rippleEffect)
+                                .opacity(1.0 - Double(index) * 0.3)
+                                .rotationEffect(.degrees(logoRotation + Double(index) * 30))
+                                .scaleEffect(breathingEffect)
+                        }
 
-                        // Main logo circle
+                        // Sparkle effects around logo
+                        ForEach(0..<8, id: \.self) { index in
+                            Circle()
+                                .fill(Color.white.opacity(sparkleOpacity))
+                                .frame(width: 4, height: 4)
+                                .offset(
+                                    x: cos(Double(index) * .pi / 4 + colorShift) * 80,
+                                    y: sin(Double(index) * .pi / 4 + colorShift) * 80
+                                )
+                                .blur(radius: 1)
+                                .scaleEffect(1.0 + sin(colorShift + Double(index)) * 0.5)
+                        }
+
+                        // Main logo circle with morphing effects
                         Circle()
                             .fill(
-                                LinearGradient(
-                                    colors: [Color.blue, Color.purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                                RadialGradient(
+                                    colors: [
+                                        Color.blue.opacity(0.9 + sin(colorShift) * 0.1),
+                                        Color.purple.opacity(0.8 + cos(colorShift * 1.2) * 0.2),
+                                        Color.cyan.opacity(0.6 + sin(colorShift * 0.8) * 0.3)
+                                    ],
+                                    center: UnitPoint(x: 0.5 + sin(colorShift) * 0.1, y: 0.5 + cos(colorShift) * 0.1),
+                                    startRadius: 10,
+                                    endRadius: 80
                                 )
                             )
-                            .frame(width: 140, height: 140)
-                            .scaleEffect(logoScale)
-                            .shadow(color: .blue.opacity(0.4), radius: 25, x: 0, y: 15)
-                            .shadow(color: .purple.opacity(0.3), radius: 15, x: 0, y: 8)
+                            .frame(width: 140 * morphingScale, height: 140 * morphingScale)
+                            .scaleEffect(logoScale * energyPulse)
+                            .blur(radius: logoBlur)
+                            .shadow(color: .blue.opacity(0.6), radius: 30, x: 0, y: 20)
+                            .shadow(color: .purple.opacity(0.4), radius: 20, x: 0, y: 10)
+                            .shadow(color: .cyan.opacity(0.3), radius: 40, x: 0, y: 25)
 
                         // Animated Ekohe characters
                         if showCharacterAnimation && currentCharacterIndex < ekoheCharacters.count {
@@ -204,7 +242,7 @@ struct LandingPageView: View {
     }
 
     private func startAnimations() {
-        // Background fade in
+        // Background fade in with wave effect
         withAnimation(.easeOut(duration: 0.4)) {
             backgroundOpacity = 1.0
         }
@@ -214,7 +252,7 @@ struct LandingPageView: View {
             particleOpacity = 0.6
         }
 
-        // Logo scale and glow
+        // Enhanced logo animations with morphing effects
         withAnimation(.spring(response: 0.8, dampingFraction: 0.6).delay(0.3)) {
             logoScale = 1.0
         }
@@ -223,8 +261,34 @@ struct LandingPageView: View {
             glowIntensity = 0.8
         }
 
+        // Continuous morphing and breathing effects
+        withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true).delay(0.5)) {
+            morphingScale = 1.1
+            breathingEffect = 1.05
+        }
+
+        // Ripple effect animation
+        withAnimation(.easeOut(duration: 1.5).repeatForever().delay(0.6)) {
+            rippleEffect = 50.0
+        }
+
+        // Color shifting animation
+        withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false).delay(0.7)) {
+            colorShift = .pi * 2
+        }
+
+        // Sparkle animation
+        withAnimation(.easeInOut(duration: 0.8).delay(0.8)) {
+            sparkleOpacity = 0.8
+        }
+
+        // Energy pulse effect
+        withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(0.9)) {
+            energyPulse = 1.08
+        }
+
         // Logo rotation (continuous)
-        withAnimation(.linear(duration: 0.1).delay(0.5)) {
+        withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false).delay(0.5)) {
             logoRotation = 360.0
         }
 
@@ -290,25 +354,40 @@ struct LandingPageView: View {
 // MARK: - Particles Animation View
 struct ParticlesView: View {
     @State private var particles: [Particle] = []
+    @State private var animationTime: Double = 0
 
     var body: some View {
         ZStack {
             ForEach(particles, id: \.id) { particle in
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                ZStack {
+                    // Main particle with enhanced gradient
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.blue.opacity(particle.opacity * 0.8),
+                                    Color.purple.opacity(particle.opacity * 0.6),
+                                    Color.cyan.opacity(particle.opacity * 0.4),
+                                    Color.clear
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: particle.size * 0.8
+                            )
                         )
-                    )
-                    .frame(width: particle.size, height: particle.size)
-                    .position(particle.position)
-                    .opacity(particle.opacity)
-                    .animation(
-                        .linear(duration: particle.duration).repeatForever(autoreverses: false),
-                        value: particle.position
-                    )
+                        .frame(width: particle.size, height: particle.size)
+                        .position(particle.position)
+                        .scaleEffect(1.0 + sin(animationTime * 2 + particle.duration) * 0.3)
+                        .blur(radius: 1 + sin(animationTime + particle.duration) * 0.5)
+
+                    // Particle glow effect
+                    Circle()
+                        .fill(Color.white.opacity(particle.opacity * 0.3))
+                        .frame(width: particle.size * 0.5, height: particle.size * 0.5)
+                        .position(particle.position)
+                        .blur(radius: 3)
+                        .scaleEffect(1.0 + cos(animationTime * 3 + particle.duration) * 0.4)
+                }
             }
         }
         .onAppear {
@@ -339,11 +418,32 @@ struct ParticlesView: View {
         let screenWidth = UIScreen.main.bounds.width
         let screenHeight = UIScreen.main.bounds.height
 
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            for i in 0..<particles.count {
-                let randomX = CGFloat.random(in: -20...screenWidth + 20)
-                let randomY = CGFloat.random(in: -20...screenHeight + 20)
-                particles[i].position = CGPoint(x: randomX, y: randomY)
+        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            animationTime += 0.05
+
+            withAnimation(.linear(duration: 0.05)) {
+                for i in 0..<particles.count {
+                    // Enhanced floating movement with sine waves
+                    let baseSpeed = particles[i].duration * 0.1
+                    let waveX = sin(animationTime * 0.5 + particles[i].duration) * 30
+                    let waveY = cos(animationTime * 0.3 + particles[i].duration) * 20
+
+                    particles[i].position.x += CGFloat(waveX * baseSpeed)
+                    particles[i].position.y += CGFloat(waveY * baseSpeed - 0.5)
+
+                    // Wrap around screen edges with smooth transitions
+                    if particles[i].position.x > screenWidth + 50 {
+                        particles[i].position.x = -50
+                    } else if particles[i].position.x < -50 {
+                        particles[i].position.x = screenWidth + 50
+                    }
+
+                    if particles[i].position.y > screenHeight + 50 {
+                        particles[i].position.y = -50
+                    } else if particles[i].position.y < -50 {
+                        particles[i].position.y = screenHeight + 50
+                    }
+                }
             }
         }
     }

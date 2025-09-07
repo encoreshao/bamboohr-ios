@@ -11,6 +11,10 @@ struct FloatingNavigationBar: View {
     @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
     @State private var isAnimating = false
+    @State private var morphingEffect: CGFloat = 0
+    @State private var ripplePhase: CGFloat = 0
+    @State private var colorShift: Double = 0
+    @State private var breathingScale: CGFloat = 1.0
 
     private let tabs = [
         TabItem(id: 0, icon: "house", activeIcon: "house.fill", title: "Home", color: .blue, style: .primary),
@@ -42,44 +46,70 @@ struct FloatingNavigationBar: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(
-                // Creative glassmorphism background
+                // Enhanced creative glassmorphism background
                 ZStack {
-                    // Base glass effect
-                    RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.8)
+                    // Morphing ripple effects
+                    ForEach(0..<2, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 18 + CGFloat(index) * 2)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.blue.opacity(0.3 - Double(index) * 0.1),
+                                        Color.purple.opacity(0.2 - Double(index) * 0.05),
+                                        Color.clear
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                            .scaleEffect(1.0 + ripplePhase * 0.05 + CGFloat(index) * 0.02)
+                            .opacity(1.0 - ripplePhase * 0.3)
+                    }
 
-                    // Gradient overlay for depth
-                    RoundedRectangle(cornerRadius: 18)
+                    // Base glass effect with morphing
+                    RoundedRectangle(cornerRadius: 18 + morphingEffect)
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.85)
+                        .scaleEffect(breathingScale)
+
+                    // Dynamic gradient overlay
+                    RoundedRectangle(cornerRadius: 18 + morphingEffect)
                         .fill(
-                            LinearGradient(
+                            RadialGradient(
                                 colors: [
-                                    Color.white.opacity(0.2),
-                                    Color.white.opacity(0.05),
-                                    Color.black.opacity(0.02)
+                                    Color.white.opacity(0.3 + sin(colorShift) * 0.1),
+                                    Color.blue.opacity(0.1 + cos(colorShift * 1.2) * 0.05),
+                                    Color.purple.opacity(0.05 + sin(colorShift * 0.8) * 0.03),
+                                    Color.clear
                                 ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                center: UnitPoint(x: 0.5 + sin(colorShift) * 0.1, y: 0.5 + cos(colorShift) * 0.1),
+                                startRadius: 10,
+                                endRadius: 100
                             )
                         )
+                        .scaleEffect(breathingScale)
 
-                    // Subtle border with gradient
-                    RoundedRectangle(cornerRadius: 18)
+                    // Enhanced border with dynamic colors
+                    RoundedRectangle(cornerRadius: 18 + morphingEffect)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(0.3),
-                                    Color.white.opacity(0.1),
+                                    Color.white.opacity(0.4 + sin(colorShift) * 0.1),
+                                    Color.blue.opacity(0.2 + cos(colorShift) * 0.1),
+                                    Color.purple.opacity(0.1 + sin(colorShift * 1.5) * 0.05),
                                     Color.clear
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             ),
-                            lineWidth: 1
+                            lineWidth: 1.5
                         )
+                        .scaleEffect(breathingScale)
                 }
-                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .shadow(color: .blue.opacity(0.15), radius: 25, x: 0, y: 12)
+                .shadow(color: .purple.opacity(0.1), radius: 15, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.08), radius: 30, x: 0, y: 15)
             )
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
@@ -88,6 +118,26 @@ struct FloatingNavigationBar: View {
         .onAppear {
             withAnimation(.easeInOut(duration: 0.5).delay(0.2)) {
                 isAnimating = true
+            }
+
+            // Start continuous morphing effects
+            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                morphingEffect = 3.0
+            }
+
+            // Start ripple animation
+            withAnimation(.easeOut(duration: 2.0).repeatForever()) {
+                ripplePhase = 1.0
+            }
+
+            // Start color shifting
+            withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
+                colorShift = .pi * 2
+            }
+
+            // Start breathing effect
+            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                breathingScale = 1.03
             }
         }
     }
@@ -101,59 +151,70 @@ struct CreativeTabButton: View {
     let action: () -> Void
     @State private var isPressed = false
     @State private var hoverScale: CGFloat = 1.0
+    @State private var pulsePhase: CGFloat = 0
+    @State private var glowIntensity: Double = 0
+    @State private var rotationAngle: Double = 0
+
+    private var selectedBackground: some View {
+        ZStack {
+            // Pulsing glow effect
+            RoundedRectangle(cornerRadius: 12)
+                .fill(tab.color.opacity(0.3))
+                .blur(radius: 8)
+                .scaleEffect(1.2 + pulsePhase * 0.1)
+                .opacity(glowIntensity * 0.6)
+
+            // Main background
+            RoundedRectangle(cornerRadius: 12)
+                .fill(tab.color.opacity(0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(tab.color.opacity(0.3), lineWidth: 1.5)
+                )
+                .shadow(color: tab.color.opacity(0.3), radius: 12, x: 0, y: 6)
+                .scaleEffect(1.05 + pulsePhase * 0.02)
+        }
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.7).combined(with: .opacity),
+            removal: .scale(scale: 1.2).combined(with: .opacity)
+        ))
+    }
+
+    private var iconView: some View {
+        ZStack {
+            // Icon glow for selected state
+            if isSelected {
+                Image(systemName: tab.activeIcon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(tab.color)
+                    .opacity(0.3)
+                    .blur(radius: 8)
+                    .scaleEffect(1.5)
+            }
+
+            // Main icon
+            Image(systemName: isSelected ? tab.activeIcon : tab.icon)
+                .font(.system(size: isSelected ? 20 : 14, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? tab.color : tab.color.opacity(0.6))
+                .scaleEffect(hoverScale)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.2), value: isSelected)
+                .animation(.easeInOut(duration: 0.2), value: hoverScale)
+        }
+    }
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 // Background for selected state
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    tab.color.opacity(0.15),
-                                    tab.color.opacity(0.08)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(tab.color.opacity(0.2), lineWidth: 1)
-                        )
-                        .shadow(color: tab.color.opacity(0.2), radius: 8, x: 0, y: 4)
-                        .scaleEffect(1.05)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.8).combined(with: .opacity),
-                            removal: .scale(scale: 1.1).combined(with: .opacity)
-                        ))
+                    selectedBackground
                 }
 
                 VStack(spacing: 1) {
-                    // Enhanced icon with glow effect
-                    ZStack {
-                        // Icon glow for selected state
-                        if isSelected {
-                            Image(systemName: tab.activeIcon)
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(tab.color)
-                                .opacity(0.3)
-                                .blur(radius: 8)
-                                .scaleEffect(1.5)
-                        }
+                    // Icon with glow effect
+                    iconView
 
-                        // Main icon
-                        Image(systemName: isSelected ? tab.activeIcon : tab.icon)
-                            .font(.system(size: isSelected ? 20 : 14, weight: isSelected ? .semibold : .medium))
-                            .foregroundColor(isSelected ? tab.color : tab.color.opacity(0.6))
-                            .scaleEffect(hoverScale)
-                            .scaleEffect(isSelected ? 1.0 : 1.0) // Additional scale for selected state
-                            .animation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.2), value: isSelected)
-                            .animation(.easeInOut(duration: 0.2), value: hoverScale)
-                    }
-
-                    // Dynamic text with enhanced styling
+                    // Dynamic text
                     if !isSelected {
                         Text(getLocalizedTitle(tab.title))
                             .font(.system(size: 10, weight: .medium))
@@ -178,6 +239,46 @@ struct CreativeTabButton: View {
             }
         }
         .animation(.interactiveSpring(response: 0.4, dampingFraction: 0.7), value: isSelected)
+        .onAppear {
+            if isSelected {
+                // Start pulsing animation for selected tab
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                    pulsePhase = 1.0
+                }
+
+                // Start glow animation
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    glowIntensity = 1.0
+                }
+
+                // Start rotation animation
+                withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+                    rotationAngle = .pi * 2
+                }
+            }
+        }
+        .onChange(of: isSelected) { _, newValue in
+            if newValue {
+                // Animate when becoming selected
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                    pulsePhase = 1.0
+                }
+
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    glowIntensity = 1.0
+                }
+
+                withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+                    rotationAngle = .pi * 2
+                }
+            } else {
+                // Reset when deselected
+                withAnimation(.easeOut(duration: 0.5)) {
+                    pulsePhase = 0
+                    glowIntensity = 0
+                }
+            }
+        }
     }
 
     private func getLocalizedTitle(_ title: String) -> String {

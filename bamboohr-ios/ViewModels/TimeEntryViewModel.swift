@@ -16,9 +16,7 @@ class TimeEntryViewModel: ObservableObject {
         didSet {
             // 检查日期是否真的发生了变化（不是同一天）
             if !Calendar.current.isDate(selectedDate, inSameDayAs: oldValue) {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                print("DEBUG: ✅ Selected date changed from \(formatter.string(from: oldValue)) to \(formatter.string(from: selectedDate))")
+                // Date changed, load new data
 
                 // 取消之前的请求
                 timeEntriesCancellable?.cancel()
@@ -31,7 +29,6 @@ class TimeEntryViewModel: ObservableObject {
                 // 检查是否切换到了不同的周，如果是则重新加载本周数据
                 let calendar = Calendar.current
                 if !calendar.isDate(selectedDate, equalTo: oldValue, toGranularity: .weekOfYear) {
-                    print("DEBUG: 📅 Week changed, reloading weekly data")
                     DispatchQueue.main.async { [weak self] in
                         self?.loadWeeklyTimeEntries(for: self?.selectedDate ?? Date())
                     }
@@ -81,7 +78,7 @@ class TimeEntryViewModel: ObservableObject {
     func loadProjects() {
         isLoading = true
 
-        bambooHRService.fetchProjects()
+        bambooHRService.fetchProjectsCached()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
@@ -91,12 +88,12 @@ class TimeEntryViewModel: ObservableObject {
                         let errorMessage = localizationManager.localized(.projectsLoadFailed)
                         self?.error = errorMessage
                         ToastManager.shared.error(errorMessage)
-                        print("DEBUG: Failed to load projects: \(error.localizedDescription)")
+                        print("⚠️ Failed to load projects: \(error.localizedDescription)")
                     }
                 },
                 receiveValue: { [weak self] (projects: [Project]) in
                     self?.projects = projects
-                    // 移除成功消息提示，按用户建议只在首页显示成功消息
+                    // Projects loaded successfully (cached or fresh)
                 }
             )
             .store(in: &cancellables)
@@ -108,15 +105,11 @@ class TimeEntryViewModel: ObservableObject {
 
         // 防止重复加载
         guard !isLoadingEntries else {
-            print("DEBUG: Already loading time entries, skipping duplicate request")
             return
         }
 
         isLoadingEntries = true
         let targetDate = selectedDate // 保存当前目标日期
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .medium
-        print("DEBUG: 🔄 Loading time entries for date: \(dateFormatter.string(from: targetDate))")
 
         // 清空当前时间记录，显示加载状态，带有动画效果
         withAnimation(.easeOut(duration: 0.2)) {
@@ -129,15 +122,12 @@ class TimeEntryViewModel: ObservableObject {
                 receiveCompletion: { [weak self] (completion: Subscribers.Completion<BambooHRError>) in
                     // 确保我们仍在处理正确的日期
                     guard let self = self, Calendar.current.isDate(self.selectedDate, inSameDayAs: targetDate) else {
-                        print("DEBUG: ⏩ Date changed during loading, discarding results for \(dateFormatter.string(from: targetDate))")
                         return
                     }
 
                     self.isLoadingEntries = false
 
                     if case .failure(let error) = completion {
-                        print("DEBUG: ❌ Failed to load time entries for \(dateFormatter.string(from: targetDate)): \(error.localizedDescription)")
-
                         // Only show error toast for authentication or network errors
                         // Don't show error for 404 (time tracking might not be enabled)
                         switch error {
@@ -150,8 +140,8 @@ class TimeEntryViewModel: ObservableObject {
                             let errorMessage = localizationManager.localized(.networkError)
                             ToastManager.shared.error(errorMessage)
                         default:
-                            // For other errors (like 404), just log them without showing toast
-                            print("DEBUG: Time tracking might not be enabled for this account")
+                            // For other errors (like 404), silent handling
+                            break
                         }
                     }
                 },
@@ -160,23 +150,13 @@ class TimeEntryViewModel: ObservableObject {
 
                     // 确保我们仍在处理正确的日期
                     guard Calendar.current.isDate(self.selectedDate, inSameDayAs: targetDate) else {
-                        print("DEBUG: ⏩ Date changed during loading, discarding results for \(dateFormatter.string(from: targetDate))")
                         return
                     }
-
-                    print("DEBUG: ✅ Received \(entries.count) time entries for \(dateFormatter.string(from: targetDate))")
 
                     // Sort entries in reverse order to match Node.js implementation
                     // This shows the most recent entries first
                     withAnimation(.easeInOut(duration: 0.3)) {
                         self.timeEntries = entries.reversed()
-                    }
-
-                    print("DEBUG: 📋 Total hours for \(dateFormatter.string(from: targetDate)): \(self.formattedTotalHours)")
-
-                    // Print details of loaded entries for debugging
-                    for entry in entries {
-                        print("DEBUG: Entry - ID: \(entry.id), Hours: \(entry.hours), Project: \(entry.projectName ?? "None"), Task: \(entry.taskName ?? "None"), Date: \(entry.date)")
                     }
                 }
             )
@@ -184,7 +164,6 @@ class TimeEntryViewModel: ObservableObject {
 
     // 强制刷新当前日期的时间记录
     func forceRefreshTimeEntries() {
-        print("DEBUG: 🔄 Force refreshing time entries for current date")
         isLoadingEntries = false // 重置加载状态
         loadTimeEntries()
     }
@@ -206,7 +185,6 @@ class TimeEntryViewModel: ObservableObject {
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        print("DEBUG: 📅 Loading weekly time entries from \(dateFormatter.string(from: startOfWeek)) to \(dateFormatter.string(from: endOfWeek))")
 
         weeklyDataCancellable = bambooHRService.fetchTimeEntries(from: startOfWeek, to: endOfWeek)
             .receive(on: DispatchQueue.main)
@@ -216,8 +194,6 @@ class TimeEntryViewModel: ObservableObject {
                 },
                 receiveValue: { [weak self] entries in
                     guard let self = self else { return }
-
-                    print("DEBUG: ✅ Received \(entries.count) weekly time entries")
 
                     // 清空之前的缓存
                     self.weeklyTimeEntries.removeAll()
@@ -232,12 +208,6 @@ class TimeEntryViewModel: ObservableObject {
                             self.weeklyTimeEntries[dateKey] = []
                         }
                         self.weeklyTimeEntries[dateKey]?.append(entry)
-                    }
-
-                    print("DEBUG: 📊 Cached time entries for \(self.weeklyTimeEntries.keys.count) days")
-                    for (dateKey, dayEntries) in self.weeklyTimeEntries {
-                        let totalHours = dayEntries.reduce(0.0) { $0 + $1.hours }
-                        print("DEBUG: \(dateKey): \(dayEntries.count) entries, \(totalHours) hours")
                     }
                 }
             )

@@ -34,16 +34,14 @@ class PeopleViewModel: ObservableObject {
         isLoading = true
         error = nil
 
-        print("DEBUG: Starting to load employees from BambooHR API")
-
-        bambooHRService.fetchEmployeeDirectory()
+        bambooHRService.fetchEmployeeDirectoryCached()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
                     self?.isLoading = false
 
                     if case .failure(let error) = completion {
-                        print("DEBUG: Failed to load employees: \(error.localizedDescription)")
+                        print("⚠️ Failed to load employees: \(error.localizedDescription)")
 
                         let localizationManager = LocalizationManager.shared
                         switch error {
@@ -56,19 +54,18 @@ class PeopleViewModel: ObservableObject {
                         }
 
                         // 如果API失败，显示模拟数据作为后备
-                        print("DEBUG: API failed, falling back to mock data")
+                        print("📋 API failed, falling back to mock data")
                         self?.loadMockEmployees()
                     }
                 },
                 receiveValue: { [weak self] employees in
-                    print("DEBUG: Successfully loaded \(employees.count) employees from API")
                     self?.employees = employees
                     self?.filteredEmployees = employees
                     self?.error = nil
                     self?.isUsingMockData = false
 
                     if employees.isEmpty {
-                        print("DEBUG: No employees returned from API, loading mock data")
+                        print("📋 No employees returned from API, loading mock data")
                         self?.loadMockEmployees()
                     }
                 }
@@ -99,7 +96,7 @@ class PeopleViewModel: ObservableObject {
     }
 
     private func loadMockEmployees() {
-        print("DEBUG: Loading mock employees as fallback")
+        print("📋 Loading mock employees as fallback")
 
         let mockEmployees = [
             User(id: "1", firstName: "John", lastName: "Smith", jobTitle: "Software Engineer", department: "Engineering", photoUrl: nil, nickname: nil, location: "San Francisco", email: "john.smith@company.com", phone: "+1 (415) 555-0123"),
@@ -119,7 +116,7 @@ class PeopleViewModel: ObservableObject {
         self.isLoading = false
         self.isUsingMockData = true
 
-        print("DEBUG: Loaded \(mockEmployees.count) mock employees")
+        print("📋 Loaded \(mockEmployees.count) mock employees")
     }
 
     func clearSelection() {

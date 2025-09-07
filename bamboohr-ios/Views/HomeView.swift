@@ -15,6 +15,7 @@ struct HomeView: View {
     @StateObject private var localizationManager = LocalizationManager.shared
     @StateObject private var celebrationViewModel: CelebrationViewModel
     @State private var isRefreshing = false
+    @State private var hasAppeared = false
 
     init(viewModel: UserViewModel, leaveViewModel: LeaveViewModel, timeEntryViewModel: TimeEntryViewModel, selectedTab: Binding<Int>) {
         self.viewModel = viewModel
@@ -35,13 +36,25 @@ struct HomeView: View {
                     ScrollView {
                         LazyVStack(spacing: 20) {
                             userProfileSection(user: user)
+                                .scaleIn(delay: 0.1, initialScale: 0.9)
+                                .slideIn(from: .top, distance: 30, delay: 0.1)
+
                             quickStatsSection(user: user)
+                                .scaleIn(delay: 0.3, initialScale: 0.9)
+                                .slideIn(from: .leading, distance: 40, delay: 0.3)
 
                             // Celebrations section
                             CelebrationsSection(viewModel: celebrationViewModel)
+                                .scaleIn(delay: 0.5, initialScale: 0.9)
+                                .slideIn(from: .trailing, distance: 40, delay: 0.5)
 
                             myTimeOffRequestsSection
+                                .scaleIn(delay: 0.7, initialScale: 0.9)
+                                .slideIn(from: .bottom, distance: 30, delay: 0.7)
+
                             todayOverviewSection
+                                .scaleIn(delay: 0.9, initialScale: 0.9)
+                                .fadeIn(delay: 0.9)
                         }
                         .padding(.horizontal) // 只保留水平padding
                         .padding(.bottom) // 只保留底部padding
@@ -82,13 +95,16 @@ struct HomeView: View {
             }
         }
         .onAppear {
-            if viewModel.user == nil && !viewModel.isLoading {
-                viewModel.loadUserInfo()
-            }
+            if !hasAppeared {
+                hasAppeared = true
+                if viewModel.user == nil && !viewModel.isLoading {
+                    viewModel.loadUserInfo()
+                }
 
-            // 确保休假数据也加载
-            if leaveViewModel.leaveEntries.isEmpty && !leaveViewModel.isLoading {
-                leaveViewModel.loadLeaveInfo()
+                // 确保休假数据也加载
+                if leaveViewModel.leaveEntries.isEmpty && !leaveViewModel.isLoading {
+                    leaveViewModel.loadLeaveInfo()
+                }
             }
         }
     }
@@ -780,7 +796,8 @@ struct HomeView: View {
                     if myLeaveEntries.count > 3 {
                         Button(action: {
                             // Navigate to Leave tab
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            HapticFeedback.light()
+                            withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.7)) {
                                 selectedTab = 2
                             }
                         }) {

@@ -94,6 +94,31 @@ struct SettingsView: View {
             }
 
             VStack(spacing: 12) {
+                // Cache Statistics Navigation
+                NavigationLink(destination: CacheStatisticsView()) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "memorychip")
+                            .foregroundColor(.green)
+                            .font(.title3)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Cache Statistics")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            Text("View API cache performance")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+                }
                 HStack(spacing: 12) {
                     Image(systemName: "globe")
                         .foregroundColor(.blue)

@@ -33,7 +33,7 @@ class UserViewModel: ObservableObject {
         error = nil
 
         // 并行加载用户信息和统计数据
-        let userInfoPublisher = bambooHRService.fetchCurrentUser()
+        let userInfoPublisher = bambooHRService.fetchCurrentUserCached()
         let statsPublisher = loadStatistics()
 
         Publishers.CombineLatest(userInfoPublisher, statsPublisher)
@@ -48,7 +48,7 @@ class UserViewModel: ObservableObject {
 
                         self?.error = errorMessage
                         ToastManager.shared.error(errorMessage)
-                        print("DEBUG: Failed to load user info: \(error.localizedDescription)")
+                        print("⚠️ Failed to load user info: \(error.localizedDescription)")
                     }
                 },
                 receiveValue: { [weak self] (user: User, _: Bool) in
@@ -67,14 +67,10 @@ class UserViewModel: ObservableObject {
 
         // 获取本周开始日期
         let weekday = calendar.component(.weekday, from: today)
-        print("DEBUG: Weekday \(weekday) for weekly hours calculation")
-
-        // let daysFromMonday = (weekday == 1) ? 6 : weekday - 2
         let daysFromMonday = weekday
         guard let startOfWeek = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) else {
             return Just(false).setFailureType(to: BambooHRError.self).eraseToAnyPublisher()
         }
-        print("DEBUG: startOfWeek \(startOfWeek) for weekly hours calculation")
 
         // 并行获取各种数据
         let weeklyHoursPublisher = calculateWeeklyHours(from: startOfWeek, to: today)
@@ -108,10 +104,6 @@ class UserViewModel: ObservableObject {
         let calendar = Calendar.current
         var fetchPublishers: [AnyPublisher<[TimeEntry], BambooHRError>] = []
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .short
-        print("DEBUG: Calculating weekly hours from \(dateFormatter.string(from: startDate)) to \(dateFormatter.string(from: endDate))")
-
         // 获取本周每天的时间记录
         var currentDate = startDate
         while currentDate <= endDate {
@@ -119,24 +111,15 @@ class UserViewModel: ObservableObject {
             currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
         }
 
-        print("DEBUG: Created \(fetchPublishers.count) fetch publishers for weekly hours calculation")
-
         return Publishers.MergeMany(fetchPublishers)
             .collect()
             .map { timeEntriesArrays in
                 let allEntries = timeEntriesArrays.flatMap { $0 }
                 let totalHours = allEntries.reduce(0.0) { $0 + $1.hours }
-                print("DEBUG: Calculated weekly hours: \(totalHours) from \(allEntries.count) entries")
-
-                // Print details for debugging
-                for entry in allEntries {
-                    print("DEBUG: Weekly hours entry - Date: \(entry.date), Hours: \(entry.hours), Project: \(entry.projectName ?? "None")")
-                }
-
                 return totalHours
             }
             .catch { error in
-                print("DEBUG: Failed to calculate weekly hours: \(error.localizedDescription)")
+                print("⚠️ Failed to calculate weekly hours: \(error.localizedDescription)")
                 // 如果获取失败，返回合理的模拟数据
                 let currentHour = Calendar.current.component(.hour, from: Date())
                 let dayOfWeek = Calendar.current.component(.weekday, from: Date())
@@ -146,7 +129,6 @@ class UserViewModel: ObservableObject {
                 let weeklyHours = Double(dailyHours) + Double(max(0, (dayOfWeek - 2)) * 8)
                 let simulatedHours = max(0, min(40, weeklyHours))
 
-                print("DEBUG: Using simulated weekly hours: \(simulatedHours)")
                 return Just(simulatedHours).setFailureType(to: BambooHRError.self)
             }
             .eraseToAnyPublisher()
@@ -154,9 +136,9 @@ class UserViewModel: ObservableObject {
 
     // 获取剩余假期
     private func getLeaveBalance() -> AnyPublisher<Int, BambooHRError> {
-        return bambooHRService.fetchTimeOffBalance()
+        return bambooHRService.fetchTimeOffBalanceCached()
             .catch { error in
-                print("DEBUG: Failed to fetch leave balance: \(error.localizedDescription)")
+                print("⚠️ Failed to fetch leave balance: \(error.localizedDescription)")
                 // 如果获取失败，返回合理的默认值
                 return Just(15).setFailureType(to: BambooHRError.self)
             }
@@ -165,7 +147,7 @@ class UserViewModel: ObservableObject {
 
     // 获取总项目数
     private func getTotalProjects() -> AnyPublisher<Int, BambooHRError> {
-        return bambooHRService.fetchProjects()
+        return bambooHRService.fetchProjectsCached()
             .map { projects in
                 projects.count
             }
@@ -178,14 +160,12 @@ class UserViewModel: ObservableObject {
 
     // 获取总员工数
     private func getTotalEmployees() -> AnyPublisher<Int, BambooHRError> {
-        return bambooHRService.fetchEmployeeDirectory()
+        return bambooHRService.fetchEmployeeDirectoryCached()
             .map { employees in
-                let employeeCount = employees.count
-                print("DEBUG: Fetched \(employeeCount) employees for total count")
-                return employeeCount
+                employees.count
             }
             .catch { error in
-                print("DEBUG: Failed to fetch employee directory for count: \(error.localizedDescription)")
+                print("⚠️ Failed to fetch employee directory for count: \(error.localizedDescription)")
                 // 如果获取失败，返回合理的默认值
                 return Just(47).setFailureType(to: BambooHRError.self)
             }
@@ -198,7 +178,7 @@ class UserViewModel: ObservableObject {
         let calendar = Calendar.current
         let endDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
 
-        return bambooHRService.fetchTimeOffEntries(startDate: today, endDate: endDate)
+        return bambooHRService.fetchTimeOffEntriesCached(startDate: today, endDate: endDate)
             .map { [weak self] entries in
                 let todayEntries = entries.filter { entry in
                     guard let start = entry.startDate, let end = entry.endDate else { return false }
