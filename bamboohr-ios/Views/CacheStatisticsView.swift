@@ -9,18 +9,19 @@ import SwiftUI
 
 struct CacheStatisticsView: View {
     @ObservedObject private var cacheManager = DataCacheManager.shared
+    @StateObject private var localizationManager = LocalizationManager.shared
 
     var body: some View {
         NavigationView {
             List {
-                Section("Cache Performance") {
-                    StatRow(label: "Total Requests", value: "\(cacheManager.totalRequests)")
-                    StatRow(label: "Cache Hits", value: "\(cacheManager.cacheHits)")
-                    StatRow(label: "Cache Misses", value: "\(cacheManager.cacheMisses)")
-                    StatRow(label: "Hit Rate", value: String(format: "%.1f%%", cacheManager.cacheHitRate))
+                Section(localizationManager.localized(.cachePerformance)) {
+                    StatRow(label: localizationManager.localized(.cacheTotalRequests), value: "\(cacheManager.totalRequests)")
+                    StatRow(label: localizationManager.localized(.cacheCacheHits), value: "\(cacheManager.cacheHits)")
+                    StatRow(label: localizationManager.localized(.cacheCacheMisses), value: "\(cacheManager.cacheMisses)")
+                    StatRow(label: localizationManager.localized(.cacheHitRate), value: String(format: "%.1f%%", cacheManager.cacheHitRate))
                 }
 
-                Section("Cache Management") {
+                Section(localizationManager.localized(.cacheManagement)) {
                     Button(action: {
                         cacheManager.clearExpiredCaches()
                         HapticFeedback.light()
@@ -28,7 +29,7 @@ struct CacheStatisticsView: View {
                         HStack {
                             Image(systemName: "trash.circle")
                                 .foregroundColor(.orange)
-                            Text("Clear Expired Caches")
+                            Text(localizationManager.localized(.cacheClearExpired))
                                 .foregroundColor(.primary)
                         }
                     }
@@ -40,26 +41,26 @@ struct CacheStatisticsView: View {
                         HStack {
                             Image(systemName: "trash.fill")
                                 .foregroundColor(.red)
-                            Text("Clear All Caches")
+                            Text(localizationManager.localized(.cacheClearAll))
                                 .foregroundColor(.red)
                         }
                     }
                 }
 
-                Section("Cache Benefits") {
+                Section(localizationManager.localized(.cacheBenefits)) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Caching reduces:")
+                        Text(localizationManager.localized(.cachingReduces))
                             .font(.headline)
 
-                        BenefitRow(icon: "network", text: "API calls and network usage")
-                        BenefitRow(icon: "speedometer", text: "App loading times")
-                        BenefitRow(icon: "battery.100", text: "Battery consumption")
-                        BenefitRow(icon: "doc.text", text: "Log output volume")
+                        BenefitRow(icon: "network", text: localizationManager.localized(.cacheApiCalls))
+                        BenefitRow(icon: "speedometer", text: localizationManager.localized(.cacheLoadingTimes))
+                        BenefitRow(icon: "battery.100", text: localizationManager.localized(.cacheBatteryConsumption))
+                        BenefitRow(icon: "doc.text", text: localizationManager.localized(.cacheLogOutput))
                     }
                     .padding(.vertical, 4)
                 }
             }
-            .navigationTitle("Cache Statistics")
+            .navigationTitle(localizationManager.localized(.cacheStatistics))
             .navigationBarTitleDisplayMode(.inline)
         }
     }

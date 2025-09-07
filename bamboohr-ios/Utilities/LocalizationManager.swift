@@ -50,6 +50,48 @@ enum LocalizationKey: String, CaseIterable {
     case homeTodayTasks = "home_today_tasks"
     case homeTasksCompleted = "home_tasks_completed"
     case homeDepartmentMembers = "home_department_members"
+    case homePaidTimeOff = "home_paid_time_off"
+    case homeTeamMembersOnLeave = "home_team_members_on_leave"
+    case homeTodayTapDetails = "home_today_tap_details"
+    case homeTotalTeamMembers = "home_total_team_members"
+    case homeCompanyDirectoryTap = "home_company_directory_tap"
+    case homeWeekCompleted = "home_week_completed"
+    case homeReadyTimeOff = "home_ready_time_off"
+    case homeTapRequestVacation = "home_tap_request_vacation"
+    case homeGetStarted = "home_get_started"
+    case homeToday = "home_today"
+    case homeDays = "home_days"
+    case homeDay = "home_day"
+    case homeUnknown = "home_unknown"
+    case homeActive = "home_active"
+    case homeUpcoming = "home_upcoming"
+    case homePast = "home_past"
+    case homeDaysRemaining = "home_days_remaining"
+
+    // Cache Statistics
+    case cacheStatistics = "cache_statistics"
+    case cachePerformance = "cache_performance"
+    case cacheTotalRequests = "cache_total_requests"
+    case cacheCacheHits = "cache_cache_hits"
+    case cacheCacheMisses = "cache_cache_misses"
+    case cacheHitRate = "cache_hit_rate"
+    case cacheManagement = "cache_management"
+    case cacheClearExpired = "cache_clear_expired"
+    case cacheClearAll = "cache_clear_all"
+    case cacheBenefits = "cache_benefits"
+    case cachingReduces = "caching_reduces"
+    case cacheApiCalls = "cache_api_calls"
+    case cacheLoadingTimes = "cache_loading_times"
+    case cacheBatteryConsumption = "cache_battery_consumption"
+    case cacheLogOutput = "cache_log_output"
+
+    // Time Entry
+    case timeWorkedTime = "time_worked_time"
+    case timeEntries = "time_entries"
+
+    // Settings - Cache Statistics
+    case settingsCacheStatistics = "settings_cache_statistics"
+    case settingsCacheStatisticsSubtitle = "settings_cache_statistics_subtitle"
 
     // Time Entry screen
     case timeTitle = "time_title"
@@ -323,6 +365,48 @@ class LocalizationManager: ObservableObject {
                 "home_today_tasks": "Today's Tasks",
                 "home_tasks_completed": "Tasks Completed",
                 "home_department_members": "Department Members",
+                "home_paid_time_off": "Paid Time Off:",
+                "home_team_members_on_leave": "Team Members on Leave",
+                "home_today_tap_details": "Today • Tap to view details",
+                "home_total_team_members": "Total Team Members",
+                "home_company_directory_tap": "Company Directory • Tap to browse",
+                "home_week_completed": "Week completed",
+                "home_ready_time_off": "Ready for Time Off?",
+                "home_tap_request_vacation": "Tap to request your first vacation day",
+                "home_get_started": "Get Started",
+                "home_today": "Today",
+                "home_days": "days",
+                "home_day": "day",
+                "home_unknown": "Unknown",
+                "home_active": "Active",
+                "home_upcoming": "Upcoming",
+                "home_past": "Past",
+                "home_days_remaining": "days remaining",
+
+                // Cache Statistics
+                "cache_statistics": "Cache Statistics",
+                "cache_performance": "Cache Performance",
+                "cache_total_requests": "Total Requests",
+                "cache_cache_hits": "Cache Hits",
+                "cache_cache_misses": "Cache Misses",
+                "cache_hit_rate": "Hit Rate",
+                "cache_management": "Cache Management",
+                "cache_clear_expired": "Clear Expired Caches",
+                "cache_clear_all": "Clear All Caches",
+                "cache_benefits": "Cache Benefits",
+                "caching_reduces": "Caching reduces:",
+                "cache_api_calls": "API calls and network usage",
+                "cache_loading_times": "App loading times",
+                "cache_battery_consumption": "Battery consumption",
+                "cache_log_output": "Log output volume",
+
+                // Time Entry
+                "time_worked_time": "Worked Time",
+                "time_entries": "entries",
+
+                // Settings - Cache Statistics
+                "settings_cache_statistics": "Cache Statistics",
+                "settings_cache_statistics_subtitle": "View API cache performance",
 
                 // Time Entry screen
                 "time_title": "My Time",
@@ -503,6 +587,48 @@ class LocalizationManager: ObservableObject {
                 "home_today_tasks": "今日任务",
                 "home_tasks_completed": "任务完成",
                 "home_department_members": "部门成员",
+                "home_paid_time_off": "带薪休假：",
+                "home_team_members_on_leave": "休假团队成员",
+                "home_today_tap_details": "今日 • 点击查看详情",
+                "home_total_team_members": "团队成员总数",
+                "home_company_directory_tap": "公司通讯录 • 点击浏览",
+                "home_week_completed": "本周已完成",
+                "home_ready_time_off": "准备休假了吗？",
+                "home_tap_request_vacation": "点击申请您的第一个假期",
+                "home_get_started": "开始",
+                "home_today": "今日",
+                "home_days": "天",
+                "home_day": "天",
+                "home_unknown": "未知",
+                "home_active": "进行中",
+                "home_upcoming": "即将到来",
+                "home_past": "已过去",
+                "home_days_remaining": "天剩余",
+
+                // Cache Statistics
+                "cache_statistics": "缓存统计",
+                "cache_performance": "缓存性能",
+                "cache_total_requests": "总请求数",
+                "cache_cache_hits": "缓存命中",
+                "cache_cache_misses": "缓存未命中",
+                "cache_hit_rate": "命中率",
+                "cache_management": "缓存管理",
+                "cache_clear_expired": "清除过期缓存",
+                "cache_clear_all": "清除所有缓存",
+                "cache_benefits": "缓存优势",
+                "caching_reduces": "缓存可减少：",
+                "cache_api_calls": "API调用和网络使用",
+                "cache_loading_times": "应用加载时间",
+                "cache_battery_consumption": "电池消耗",
+                "cache_log_output": "日志输出量",
+
+                // Time Entry
+                "time_worked_time": "工作时间",
+                "time_entries": "条记录",
+
+                // Settings - Cache Statistics
+                "settings_cache_statistics": "缓存统计",
+                "settings_cache_statistics_subtitle": "查看API缓存性能",
 
                 // Time Entry screen
                 "time_title": "时间录入",

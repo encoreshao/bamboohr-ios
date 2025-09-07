@@ -372,7 +372,7 @@ struct TimesheetDayRowView: View {
                             .fontWeight(.bold)
                             .foregroundColor(.purple)
 
-                        Text("\(dayData.entries.count) \(getLocalizedText("条记录", "entries"))")
+                        Text("\(dayData.entries.count) \(localizationManager.localized(.timeEntries))")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

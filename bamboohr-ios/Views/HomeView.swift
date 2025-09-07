@@ -362,11 +362,11 @@ struct HomeView: View {
                 // Top Row: Weekly Hours (Primary Focus)
                 creativeWeeklyHoursCard
 
-                // Bottom Row: Compact Team & Leave Stats
-                HStack(spacing: 12) {
-                    compactLeaveCard
-                    compactTeamCard
-                }
+                // Individual Leave Card
+                fullWidthLeaveCard
+
+                // Individual Team Card
+                fullWidthTeamCard
             }
         }
         .padding()
@@ -438,12 +438,12 @@ struct HomeView: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.orange)
 
-            Text("Paid Time Off:")
+            Text(localizationManager.localized(.homePaidTimeOff))
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
 
-            Text("\(viewModel.remainingLeavedays) days remaining")
+            Text("\(viewModel.remainingLeavedays) \(localizationManager.localized(.homeDaysRemaining))")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.orange)
@@ -559,80 +559,80 @@ struct HomeView: View {
         )
     }
 
-    private var compactLeaveCard: some View {
+    private var fullWidthLeaveCard: some View {
         Button(action: {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 selectedTab = 2
             }
         }) {
-            HStack(spacing: 12) {
-                // Icon without badge
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.orange.opacity(0.2), .red.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            HStack(spacing: 16) {
+                // Left: Icon with gradient background
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange.opacity(0.2), .red.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Image(systemName: "person.2.badge.minus")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.orange)
-                    )
+                        .frame(width: 50, height: 50)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+
+                // Center: Content
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
                         Text("\(getTodayLeaveCount())")
-                            .font(.headline)
+                            .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.orange)
 
-                        Text("Leave")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                        Text(localizationManager.localized(.homeTeamMembersOnLeave))
+                            .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.primary)
                     }
 
-                    Text("Today")
-                        .font(.caption)
+                    Text(localizationManager.localized(.homeTodayTapDetails))
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                // Chevron indicator
+                // Right: Arrow
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.orange.opacity(0.6))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color(.systemBackground))
-                    .shadow(color: .orange.opacity(0.1), radius: 4, x: 0, y: 2)
+                    .shadow(color: .orange.opacity(0.1), radius: 8, x: 0, y: 4)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .strokeBorder(.orange.opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
     }
 
-    private var compactTeamCard: some View {
+    private var fullWidthTeamCard: some View {
         Button(action: {
             withAnimation(.easeInOut(duration: 0.3)) {
                 selectedTab = 3
             }
         }) {
-            HStack(spacing: 12) {
-                // Icon with animation
+            HStack(spacing: 16) {
+                // Left: Icon with gradient background
                 ZStack {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 12)
                         .fill(
                             LinearGradient(
                                 colors: [.green.opacity(0.2), .mint.opacity(0.1)],
@@ -640,54 +640,53 @@ struct HomeView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 32, height: 32)
+                        .frame(width: 50, height: 50)
 
                     Image(systemName: "person.3.fill")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.green)
-                        .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.5))
                 }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
+                // Center: Content
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
                         Text("\(viewModel.totalEmployees)")
-                            .font(.headline)
+                            .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.green)
 
-                        Text("Team")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                        Text(localizationManager.localized(.homeTotalTeamMembers))
+                            .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.primary)
                     }
 
-                    Text("Members")
-                        .font(.caption)
+                    Text(localizationManager.localized(.homeCompanyDirectoryTap))
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                // Chevron indicator
+                // Right: Arrow
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.green.opacity(0.6))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color(.systemBackground))
-                    .shadow(color: .green.opacity(0.1), radius: 4, x: 0, y: 2)
+                    .shadow(color: .green.opacity(0.1), radius: 8, x: 0, y: 4)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .strokeBorder(.green.opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
     }
+
 
     // MARK: - Helper Methods
 
@@ -750,7 +749,7 @@ struct HomeView: View {
         if remaining > 0 {
             return "\(localizationManager.localized(.homeStillNeed)) \(String(format: "%.1f", remaining))\(localizationManager.localized(.homeHours))"
         } else {
-            return getLocalizedText("本周已完成", "Week completed")
+            return localizationManager.localized(.homeWeekCompleted)
         }
     }
 
@@ -942,12 +941,12 @@ struct HomeView: View {
                         }
 
                         VStack(spacing: 6) {
-                            Text("Ready for Time Off?")
+                            Text(localizationManager.localized(.homeReadyTimeOff))
                                 .font(.headline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.primary)
 
-                            Text("Tap to request your first vacation day")
+                            Text(localizationManager.localized(.homeTapRequestVacation))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -955,7 +954,7 @@ struct HomeView: View {
 
                         // Call to action indicator
                         HStack(spacing: 6) {
-                            Text("Get Started")
+                            Text(localizationManager.localized(.homeGetStarted))
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundColor(.purple)
@@ -990,7 +989,7 @@ struct HomeView: View {
                 // Show recent requests (limit to 3)
                 VStack(spacing: 8) {
                     ForEach(Array(myLeaveEntries.prefix(3)), id: \.id) { request in
-                        TimeOffRequestRow(request: request)
+                        TimeOffRequestRow(request: request, localizationManager: localizationManager)
                     }
 
                     if myLeaveEntries.count > 3 {
@@ -1180,6 +1179,7 @@ struct QuickInfoRow: View {
 // MARK: - Time Off Request Row Component
 struct TimeOffRequestRow: View {
     let request: BambooLeaveInfo
+    let localizationManager: LocalizationManager
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1227,7 +1227,7 @@ struct TimeOffRequestRow: View {
                     Spacer()
 
                     if let duration = request.leaveDuration {
-                        Text("\(duration) day\(duration > 1 ? "s" : "")")
+                        Text("\(duration) \(duration > 1 ? localizationManager.localized(.homeDays) : localizationManager.localized(.homeDay))")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -1270,7 +1270,7 @@ struct TimeOffRequestRow: View {
         let today = Calendar.current.startOfDay(for: Date())
 
         guard let startDate = request.startDate, let endDate = request.endDate else {
-            return "Unknown"
+            return localizationManager.localized(.homeUnknown)
         }
 
         let startOfDay = Calendar.current.startOfDay(for: startDate)
@@ -1278,15 +1278,15 @@ struct TimeOffRequestRow: View {
 
         // Check if request is currently active (today is within the date range)
         if startOfDay <= today && endOfDay >= today {
-            return "Active"
+            return localizationManager.localized(.homeActive)
         }
         // Check if request is upcoming (starts in the future)
         else if startOfDay > today {
-            return "Upcoming"
+            return localizationManager.localized(.homeUpcoming)
         }
         // This should not happen since we filter out past requests, but just in case
         else {
-            return "Past"
+            return localizationManager.localized(.homePast)
         }
     }
 
@@ -1305,7 +1305,7 @@ struct TimeOffRequestRow: View {
             }
         }
 
-        return "Unknown"
+        return localizationManager.localized(.homeUnknown)
     }
 }
 

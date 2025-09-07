@@ -120,7 +120,7 @@ struct TimeEntryView: View {
                     .font(.title2)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Worked Time")
+                    Text(localizationManager.localized(.timeWorkedTime))
                         .font(.headline)
                         .fontWeight(.bold)
 

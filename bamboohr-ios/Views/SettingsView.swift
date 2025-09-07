@@ -103,10 +103,10 @@ struct SettingsView: View {
                             .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Cache Statistics")
+                            Text(localizationManager.localized(.settingsCacheStatistics))
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
-                            Text("View API cache performance")
+                            Text(localizationManager.localized(.settingsCacheStatisticsSubtitle))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
