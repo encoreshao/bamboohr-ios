@@ -35,26 +35,23 @@ struct HomeView: View {
                 } else if let user = viewModel.user {
                     ScrollView {
                         LazyVStack(spacing: 20) {
-                            userProfileSection(user: user)
-                                .scaleIn(delay: 0.1, initialScale: 0.9)
-                                .slideIn(from: .top, distance: 30, delay: 0.1)
+                            // 🎯 Combined Profile & Today Overview Section
+                            combinedProfileOverviewSection(user: user)
+                                .scaleIn(delay: 0.05, initialScale: 0.9)
+                                .slideIn(from: .top, distance: 30, delay: 0.05)
 
-                            quickStatsSection(user: user)
-                                .scaleIn(delay: 0.3, initialScale: 0.9)
-                                .slideIn(from: .leading, distance: 40, delay: 0.3)
+                            // 🏖️ Leave Balance Header
+                            leaveBalanceHeader
+                                .fadeIn(delay: 0.1)
 
                             // Celebrations section
                             CelebrationsSection(viewModel: celebrationViewModel)
-                                .scaleIn(delay: 0.5, initialScale: 0.9)
-                                .slideIn(from: .trailing, distance: 40, delay: 0.5)
+                                .scaleIn(delay: 0.3, initialScale: 0.9)
+                                .slideIn(from: .trailing, distance: 40, delay: 0.3)
 
                             myTimeOffRequestsSection
-                                .scaleIn(delay: 0.7, initialScale: 0.9)
-                                .slideIn(from: .bottom, distance: 30, delay: 0.7)
-
-                            todayOverviewSection
-                                .scaleIn(delay: 0.9, initialScale: 0.9)
-                                .fadeIn(delay: 0.9)
+                                .scaleIn(delay: 0.5, initialScale: 0.9)
+                                .slideIn(from: .bottom, distance: 30, delay: 0.5)
                         }
                         .padding(.horizontal) // 只保留水平padding
                         .padding(.bottom) // 只保留底部padding
@@ -236,74 +233,177 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - User Profile Section
-    private func userProfileSection(user: User) -> some View {
-        VStack(spacing: 16) {
-            // Avatar and Basic Info
-            HStack(spacing: 16) {
-                // Avatar
-                AvatarView(name: user.fullName, photoUrl: user.photoUrl, size: 80)
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [.blue, .purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 3
-                            )
-                    )
+    // MARK: - Combined Profile & Today Overview Section
+    private func combinedProfileOverviewSection(user: User) -> some View {
+        VStack(spacing: 20) {
+            // Top section: Profile + Time-based greeting
+            VStack(spacing: 16) {
+                // Profile Header with Time Info
+                HStack(spacing: 16) {
+                    // Avatar with enhanced styling
+                    AvatarView(name: user.fullName, photoUrl: user.photoUrl, size: 80)
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: getTimeGradientColors(),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 3
+                                )
+                        )
+                        .shadow(color: getTimeGradientColors().first?.opacity(0.3) ?? .blue.opacity(0.3), radius: 8, x: 0, y: 4)
 
-                // User Info
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(user.fullName)
-                        .font(.title2)
-                        .fontWeight(.bold)
+                    // User Info + Time Greeting
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(user.fullName)
+                            .font(.title2)
+                            .fontWeight(.bold)
 
-                    Text(user.jobTitle)
-                        .font(.headline)
-                        .foregroundColor(.blue)
+                        Text(user.jobTitle)
+                            .font(.headline)
+                            .foregroundColor(.blue)
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "building.2")
+                        HStack(spacing: 4) {
+                            Image(systemName: "building.2")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(user.department)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            if let location = user.location {
+                                Image(systemName: "map.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(location)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    // Time & Status Info
+                    VStack(alignment: .trailing, spacing: 4) {
+                        // Time-based icon with glow
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: getTimeGradientColors(),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 40, height: 40)
+                                .shadow(color: getTimeGradientColors().first?.opacity(0.4) ?? .blue.opacity(0.4), radius: 8, x: 0, y: 4)
+
+                            Image(systemName: currentTimeIcon)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                                .symbolEffect(.pulse.byLayer, options: .repeating)
+                        }
+
+                        Text(getCurrentTime())
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+
+                        Text(getGreetingBasedOnTime())
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(user.department)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Image(systemName: "map.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(user.location!)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
                     }
                 }
 
-                Spacer()
+                // Welcome Message with Work Status
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(greetingMessage)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(getWorkStatusColor())
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(1.2)
+                                .shadow(color: getWorkStatusColor().opacity(0.6), radius: 4, x: 0, y: 2)
+
+                            Text(getWorkStatusText())
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(getWorkStatusColor())
+
+                            Text("•")
+                                .foregroundColor(.secondary)
+
+                            Text(getFormattedDateWithDay())
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            Spacer()
+
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding()
+                .background(Color(.systemBackground).opacity(0.8))
+                .cornerRadius(12)
             }
 
-            // Welcome Message
-            welcomeMessage
+            // Creative Compact Stats Layout
+            VStack(spacing: 12) {
+                // Top Row: Weekly Hours (Primary Focus)
+                creativeWeeklyHoursCard
+
+                // Bottom Row: Compact Team & Leave Stats
+                HStack(spacing: 12) {
+                    compactLeaveCard
+                    compactTeamCard
+                }
+            }
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+            ZStack {
+                // Dynamic background based on time of day
+                LinearGradient(
+                    colors: getBackgroundGradientColors(),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
+
+                // Subtle pattern overlay
+                GeometryReader { geometry in
+                    Path { path in
+                        let width = geometry.size.width
+                        let height = geometry.size.height
+
+                        // Create subtle wave pattern
+                        path.move(to: CGPoint(x: 0, y: height * 0.8))
+                        path.addCurve(
+                            to: CGPoint(x: width, y: height * 0.7),
+                            control1: CGPoint(x: width * 0.3, y: height * 0.95),
+                            control2: CGPoint(x: width * 0.7, y: height * 0.5)
+                        )
+                        path.addLine(to: CGPoint(x: width, y: height))
+                        path.addLine(to: CGPoint(x: 0, y: height))
+                        path.closeSubpath()
+                    }
+                    .fill(Color.white.opacity(0.1))
+                }
+            }
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .strokeBorder(Color.blue.opacity(0.2), lineWidth: 1)
-        )
+        .cornerRadius(24)
+        .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
     }
+
 
     private var welcomeMessage: some View {
         HStack {
@@ -328,221 +428,265 @@ struct HomeView: View {
         .cornerRadius(12)
     }
 
-    // MARK: - Quick Stats Section
-    private func quickStatsSection(user: User) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.bar.fill")
-                    .foregroundColor(.green)
-                Text(localizationManager.localized(.homeQuickStats))
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                Spacer()
+
+
+    // MARK: - Leave Balance Header
+
+    private var leaveBalanceHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "beach.umbrella.fill")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.orange)
+
+            Text("Paid Time Off:")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+
+            Text("\(viewModel.remainingLeavedays) days remaining")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.orange)
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.orange.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(.orange.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Creative Compact Cards
+
+    private var creativeWeeklyHoursCard: some View {
+        HStack(spacing: 16) {
+            // Left side: Circular progress indicator
+            ZStack {
+                // Background circle
+                Circle()
+                    .stroke(Color.blue.opacity(0.2), lineWidth: 8)
+                    .frame(width: 60, height: 60)
+
+                // Progress circle
+                Circle()
+                    .trim(from: 0, to: min(getCurrentWeeklyHours() / 40.0, 1.0))
+                    .stroke(
+                        LinearGradient(
+                            colors: [.blue, .cyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .frame(width: 60, height: 60)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 1.0), value: getCurrentWeeklyHours())
+
+                // Center icon
+                Image(systemName: "clock.fill")
+                    .font(.title3)
+                    .foregroundColor(.blue)
             }
 
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                StatCard(
-                    title: localizationManager.localized(.homeWeeklyWork),
-                    value: String(format: "%.1f", getCurrentWeeklyHours()),
-                    icon: "clock.fill",
-                    color: .blue,
-                    subtitle: getWeeklyHoursSubtitle(worked: getCurrentWeeklyHours())
-                )
+            // Right side: Stats and info
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(localizationManager.localized(.homeWeeklyWork))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
 
-                StatCard(
-                    title: localizationManager.localized(.homeRemainingLeave),
-                    value: "\(viewModel.remainingLeavedays)",
-                    icon: "beach.umbrella",
-                    color: .orange,
-                    subtitle: localizationManager.localized(.homeLeaveBalance)
-                )
+                    Spacer()
 
-                StatCard(
-                    title: localizationManager.localized(.homeMonthlyProjects),
-                    value: "\(viewModel.totalProjects)",
-                    icon: "folder.fill",
-                    color: .purple,
-                    subtitle: localizationManager.localized(.homeInProgress)
-                )
+                    Text(String(format: "%.1f", getCurrentWeeklyHours()))
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
 
-                StatCard(
-                    title: localizationManager.localized(.homeTeamSize),
-                    value: "\(viewModel.totalEmployees)",
-                    icon: "person.3.fill",
-                    color: .green,
-                    subtitle: localizationManager.localized(.homeDepartmentMembers)
-                ) {
-                    // 点击跳转到People页面
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        selectedTab = 3
+                    Text("h")
+                        .font(.subheadline)
+                        .foregroundColor(.blue.opacity(0.7))
+                }
+
+                // Progress bar
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(height: 6)
+
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.blue, .cyan],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: geometry.size.width * min(getCurrentWeeklyHours() / 40.0, 1.0), height: 6)
+                            .animation(.easeInOut(duration: 1.0), value: getCurrentWeeklyHours())
                     }
                 }
+                .frame(height: 6)
+
+                Text(getWeeklyHoursSubtitle(worked: getCurrentWeeklyHours()))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                .shadow(color: .blue.opacity(0.1), radius: 8, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.blue.opacity(0.3), .blue.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
     }
 
-    // MARK: - Today Overview Section
-    private var todayOverviewSection: some View {
-        VStack(spacing: 20) {
-            // Enhanced Header with Weather-like Design
-            VStack(spacing: 16) {
-                HStack {
-                    // Animated time-based icon with glow effect
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: getTimeGradientColors(),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 50, height: 50)
-                            .shadow(color: getTimeGradientColors().first?.opacity(0.4) ?? .blue.opacity(0.4), radius: 10, x: 0, y: 5)
-
-                        Image(systemName: currentTimeIcon)
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(.white)
-                            .symbolEffect(.pulse.byLayer, options: .repeating)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(localizationManager.localized(.homeTodayOverview))
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.primary, .primary.opacity(0.7)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-
-                        Text(getFormattedDateWithDay())
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .fontWeight(.medium)
-                    }
-
-                    Spacer()
-
-                    // Current time display
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(getCurrentTime())
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .foregroundColor(.primary)
-
-                        Text(getGreetingBasedOnTime())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fontWeight(.medium)
-                    }
-                }
-
-                // Weather-like status bar
-                HStack(spacing: 16) {
-                    // Work status indicator
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(getWorkStatusColor())
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(1.2)
-                            .shadow(color: getWorkStatusColor().opacity(0.6), radius: 4, x: 0, y: 2)
-
-                        Text(getWorkStatusText())
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(getWorkStatusColor())
-                    }
-
-                    Spacer()
-
-                    // Temperature-like indicator (could be hours worked, etc.)
-                    Text("Week: \(String(format: "%.0f", getCurrentWeeklyHours()))h")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                }
+    private var compactLeaveCard: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                selectedTab = 2
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
-            .background(
-                ZStack {
-                    // Dynamic background based on time of day
-                    LinearGradient(
-                        colors: getBackgroundGradientColors(),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        }) {
+            HStack(spacing: 12) {
+                // Icon without badge
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.orange.opacity(0.2), .red.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Image(systemName: "person.2.badge.minus")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.orange)
                     )
 
-                    // Subtle pattern overlay
-                    GeometryReader { geometry in
-                        Path { path in
-                            let width = geometry.size.width
-                            let height = geometry.size.height
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text("\(getTodayLeaveCount())")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.orange)
 
-                            // Create subtle wave pattern
-                            path.move(to: CGPoint(x: 0, y: height * 0.7))
-                            path.addCurve(
-                                to: CGPoint(x: width, y: height * 0.6),
-                                control1: CGPoint(x: width * 0.3, y: height * 0.9),
-                                control2: CGPoint(x: width * 0.7, y: height * 0.3)
-                            )
-                            path.addLine(to: CGPoint(x: width, y: height))
-                            path.addLine(to: CGPoint(x: 0, y: height))
-                            path.closeSubpath()
-                        }
-                        .fill(Color.white.opacity(0.1))
+                        Text("Leave")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
                     }
+
+                    Text("Today")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-            )
-            .cornerRadius(24)
-            .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
 
-            // Enhanced Info Cards Grid
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ], spacing: 16) {
-                // Work Status Card
-                InfoCard(
-                    icon: "clock.arrow.circlepath",
-                    title: localizationManager.localized(.homeWorkStatus),
-                    value: getWorkStatusText(),
-                    subtitle: getWorkStatusDescription(),
-                    color: getWorkStatusColor(),
-                    gradientColors: [getWorkStatusColor(), getWorkStatusColor().opacity(0.7)],
-                    iconBackground: getWorkStatusColor().opacity(0.15)
-                )
+                Spacer()
 
-                // Team Status Card
-                InfoCard(
-                    icon: "person.2.badge.minus",
-                    title: localizationManager.localized(.homeOnLeave),
-                    value: "\(getTodayLeaveCount())",
-                    subtitle: localizationManager.localized(.homePeople),
-                    color: .orange,
-                    gradientColors: [.orange, .red.opacity(0.8)],
-                    iconBackground: .orange.opacity(0.15),
-                    action: {
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            selectedTab = 2
-                        }
-                    }
-                )
+                // Chevron indicator
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.orange.opacity(0.6))
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .orange.opacity(0.1), radius: 4, x: 0, y: 2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.orange.opacity(0.2), lineWidth: 1)
+            )
         }
-        .padding(.horizontal, 4)
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var compactTeamCard: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                selectedTab = 3
+            }
+        }) {
+            HStack(spacing: 12) {
+                // Icon with animation
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.green.opacity(0.2), .mint.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.green)
+                        .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.5))
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text("\(viewModel.totalEmployees)")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+
+                        Text("Team")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+
+                    Text("Members")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Chevron indicator
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.green.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .green.opacity(0.1), radius: 4, x: 0, y: 2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.green.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Helper Methods
@@ -770,22 +914,78 @@ struct HomeView: View {
             }
 
             if myLeaveEntries.isEmpty {
-                // Empty state
-                VStack(spacing: 12) {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.system(size: 32))
-                        .foregroundColor(.gray.opacity(0.6))
+                // Creative empty state
+                Button(action: {
+                    // Navigate to Leave tab to create a request
+                    HapticFeedback.light()
+                    withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.7)) {
+                        selectedTab = 2
+                    }
+                }) {
+                    VStack(spacing: 16) {
+                        // Animated icon stack
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.purple.opacity(0.1), .blue.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 60, height: 60)
 
-                    Text(getLocalizedText("暂无休假记录", "No time off requests"))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundColor(.purple)
+                                .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.8))
+                        }
+
+                        VStack(spacing: 6) {
+                            Text("Ready for Time Off?")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+
+                            Text("Tap to request your first vacation day")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Call to action indicator
+                        HStack(spacing: 6) {
+                            Text("Get Started")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.purple)
+
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .foregroundColor(.purple)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .padding(.horizontal, 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [.purple.opacity(0.3), .blue.opacity(0.2)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .shadow(color: .purple.opacity(0.1), radius: 8, x: 0, y: 4)
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemGray6))
-                )
+                .buttonStyle(PlainButtonStyle())
             } else {
                 // Show recent requests (limit to 3)
                 VStack(spacing: 8) {
