@@ -1122,6 +1122,15 @@ class BambooHRService {
         let today = Date()
         var celebrations: [Celebration] = []
 
+        // 🎉 Add a special birthday celebration for today!
+        celebrations.append(Celebration(
+            employeeId: "000",
+            employeeName: "You", // This represents the current user
+            type: .birthday,
+            date: today,
+            department: "🎂 Happy Birthday!"
+        ))
+
         // Sample employee data with birthdays and hire dates (expanded for more celebrations)
         let employees = [
             ("Alice Johnson", "Engineering", "1990-03-20", "2020-01-15"),

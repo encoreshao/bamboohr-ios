@@ -11,29 +11,35 @@ struct TimeEntryView: View {
     @ObservedObject var viewModel: TimeEntryViewModel
     @Binding var selectedTab: Int
     @StateObject private var localizationManager = LocalizationManager.shared
-    @State private var showingDatePicker = false
-    @FocusState private var isTextFieldFocused: Bool // 添加键盘焦点状态管理
+    @FocusState private var isTextFieldFocused: Bool
+
+    // Collapsible sections state
+    @State private var showTodaysRecords = false
+    @State private var showAnalytics = false
 
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Current date records section
-                    todayRecordsSection
+                VStack(spacing: 16) {
+                    // 🎯 MAIN FOCUS: Quick Time Entry (Always at top)
+                    quickTimeEntrySection
 
-                    // Time entry form
-                    timeEntryForm
+                    // 📊 Today's Summary (Compact overview)
+                    todaysSummarySection
 
-                    // 添加周柱状图
-                    weeklyTimeChart
+                    // 📋 Today's Records (Collapsible)
+                    todaysRecordsSection
 
-                    // My Timesheet 月度总结
+                    // 📈 Analytics & Reports (Collapsible, less prominent)
+                    analyticsSection
+
+                    // 📋 My Timesheet
                     monthlyTimesheetSummary
                 }
-                .padding(.horizontal) // 减少顶部padding
-                .padding(.bottom) // 只保留底部padding
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            .contentMargins(.top, -15) // 移除顶部内容边距
+            .contentMargins(.top, -10)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
@@ -69,6 +75,7 @@ struct TimeEntryView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    // Refresh button
                     Button {
                         viewModel.loadProjects()
                     } label: {
@@ -103,7 +110,335 @@ struct TimeEntryView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
-    // MARK: - Records Section
+    // MARK: - Quick Time Entry Section (Main Focus)
+    private var quickTimeEntrySection: some View {
+        VStack(spacing: 16) {
+            // Header with date selection
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.purple)
+                    .font(.title2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Worked Time")
+                        .font(.headline)
+                        .fontWeight(.bold)
+
+                    DatePicker(
+                        "",
+                        selection: $viewModel.selectedDate,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(CompactDatePickerStyle())
+                    .labelsHidden()
+                    .onChange(of: viewModel.selectedDate) { oldValue, newValue in
+                        if !Calendar.current.isDate(oldValue, inSameDayAs: newValue) {
+                            viewModel.forceRefreshTimeEntries()
+                        }
+                    }
+                }
+
+                Spacer()
+
+            }
+
+
+            // Compact form in horizontal layout for quick entry
+            VStack(spacing: 12) {
+                // Hours and Project in one row
+                HStack(spacing: 12) {
+                    // Hours selector (compact)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(localizationManager.localized(.timeDuration))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        HStack(spacing: 8) {
+                            Button {
+                                if viewModel.hours > 0.5 {
+                                    viewModel.hours -= 0.5
+                                }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(viewModel.hours <= 0.5 ? .gray : .red)
+                                    .font(.title3)
+                            }
+                            .disabled(viewModel.hours <= 0.5)
+
+                            Text("\(String(format: "%.1f", viewModel.hours))h")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .frame(minWidth: 50)
+
+                            Button {
+                                if viewModel.hours < 24.0 {
+                                    viewModel.hours += 0.5
+                                }
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(viewModel.hours >= 24.0 ? .gray : .green)
+                                    .font(.title3)
+                            }
+                            .disabled(viewModel.hours >= 24.0)
+                        }
+                    }
+
+                    // Project selector (compact)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(localizationManager.localized(.timeProject))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if viewModel.isLoading {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                Text(localizationManager.localized(.loading))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else if viewModel.projects.isEmpty {
+                            Button(action: {
+                                viewModel.loadProjects()
+                            }) {
+                                HStack {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Load Projects")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            }
+                        } else {
+                            Picker("", selection: $viewModel.selectedProject) {
+                                Text(localizationManager.localized(.timeSelectProject)).tag(nil as Project?)
+                                ForEach(viewModel.projects, id: \.id) { project in
+                                    Text(project.name).tag(project as Project?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+
+                // Task selector (if project selected)
+                if let project = viewModel.selectedProject, !project.tasks.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(localizationManager.localized(.timeSelectTask))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Picker("", selection: $viewModel.selectedTask) {
+                            Text(localizationManager.localized(.timeSelectTask)).tag(nil as Task?)
+                            ForEach(project.tasks, id: \.id) { task in
+                                Text(task.name).tag(task as Task?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .transition(.opacity.combined(with: .scale))
+                }
+
+                // Notes (compact)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(localizationManager.localized(.timeNotes))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    TextEditor(text: $viewModel.note)
+                        .focused($isTextFieldFocused)
+                        .frame(height: 60)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
+
+                // Submit button (prominent)
+                Button(action: {
+                    viewModel.submitTimeEntry()
+                }) {
+                    HStack {
+                        if viewModel.isSubmitting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text(viewModel.isSubmitting ? localizationManager.localized(.timeSubmitting) : localizationManager.localized(.timeSubmit))
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.purple, Color.purple.opacity(0.8)]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(viewModel.isSubmitting)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.isSubmitting)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .purple.opacity(0.1), radius: 10, x: 0, y: 4)
+        )
+    }
+
+    // MARK: - Today's Summary Section
+    private var todaysSummarySection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recordsSectionTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text(formattedDate)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                if viewModel.isLoadingEntries {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                } else {
+                    Text("\(viewModel.formattedTotalHours) \(localizationManager.localized(.homeHours))")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.purple)
+
+                    Text("\(viewModel.timeEntries.count) entries")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Button(action: {
+                withAnimation(.spring()) {
+                    showTodaysRecords.toggle()
+                }
+            }) {
+                Image(systemName: showTodaysRecords ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                    .foregroundColor(.purple)
+                    .font(.title3)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6).opacity(0.5))
+        )
+    }
+
+    // MARK: - Today's Records Section (Collapsible)
+    private var todaysRecordsSection: some View {
+        VStack(spacing: 0) {
+            if showTodaysRecords {
+                VStack(spacing: 8) {
+                    if viewModel.isLoadingEntries {
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                Text(getLocalizedText("正在加载...", "Loading..."))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .frame(minHeight: 60)
+                    } else if viewModel.timeEntries.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "clock.badge.xmark")
+                                .font(.system(size: 24))
+                                .foregroundColor(.gray)
+
+                            Text(localizationManager.localized(.timeNoRecords))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                        .background(Color(.systemGray6).opacity(0.3))
+                        .cornerRadius(8)
+                    } else {
+                        LazyVStack(spacing: 4) {
+                            ForEach(viewModel.timeEntries, id: \.id) { entry in
+                                TimeEntryRowView(entry: entry)
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                )
+                .transition(.opacity.combined(with: .scale))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: showTodaysRecords)
+    }
+
+    // MARK: - Analytics Section (Collapsible)
+    private var analyticsSection: some View {
+        VStack(spacing: 12) {
+            // Analytics header
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundColor(.purple)
+                    .font(.title3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(getLocalizedText("分析报告", "Analytics & Reports"))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    Text(getLocalizedText("查看工时统计", "View time statistics"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: {
+                    withAnimation(.spring()) {
+                        showAnalytics.toggle()
+                    }
+                }) {
+                    Image(systemName: showAnalytics ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .foregroundColor(.purple)
+                        .font(.title3)
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray6).opacity(0.5))
+            )
+
+            if showAnalytics {
+                VStack(spacing: 12) {
+                    // Weekly chart
+                    weeklyTimeChart
+                }
+                .transition(.opacity.combined(with: .scale))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: showAnalytics)
+    }
+
+    // MARK: - Legacy Records Section (keeping for reference)
     private var todayRecordsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -220,337 +555,8 @@ struct TimeEntryView: View {
         }
     }
 
-    // MARK: - Time Entry Form
-    private var timeEntryForm: some View {
-        VStack(spacing: 20) {
-            // Date Selection
-            dateSelectionSection
 
-            // Hours Input
-            hoursInputSection
-
-            // Project and Task Selection
-            projectSelectionSection
-
-            // Notes Input
-            notesSection
-
-            // Submit Button
-            submitButton
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        )
-    }
-
-    private var dateSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(localizationManager.localized(.timeSelectDate), systemImage: "calendar")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-
-                Spacer()
-
-                // 添加一个视觉指示器显示选择的日期
-                Text(formattedDate)
-                    .font(.caption)
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.1))
-                    .cornerRadius(6)
-            }
-
-            Button(action: {
-                withAnimation(.spring()) {
-                    showingDatePicker.toggle()
-                }
-            }) {
-                HStack {
-                    Text(formattedDate)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: showingDatePicker ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-            }
-
-            if showingDatePicker {
-                VStack(spacing: 12) {
-                    DatePicker(
-                        localizationManager.localized(.timeSelectDate),
-                        selection: $viewModel.selectedDate,
-                        displayedComponents: .date
-                    )
-                    .datePickerStyle(GraphicalDatePickerStyle())
-                    .labelsHidden()
-                    .onChange(of: viewModel.selectedDate) { oldValue, newValue in
-                        print("DEBUG: 📅 Date picker changed from \(oldValue) to \(newValue)")
-
-                        // 确保日期确实发生了变化
-                        if !Calendar.current.isDate(oldValue, inSameDayAs: newValue) {
-                            print("DEBUG: 🎯 Date actually changed, force refreshing time entries")
-
-                            // 使用强制刷新方法确保数据加载
-                            viewModel.forceRefreshTimeEntries()
-                        }
-
-                        // 选择日期后自动关闭picker
-                        withAnimation(.spring()) {
-                            showingDatePicker = false
-                        }
-                    }
-
-                    // 快速日期选择按钮
-                    HStack(spacing: 8) {
-                        Button(getLocalizedText("昨天", "Yesterday")) {
-                            if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    viewModel.selectedDate = yesterday
-                                }
-                                // 确保数据加载
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.forceRefreshTimeEntries()
-                                }
-                            }
-                            withAnimation(.spring()) {
-                                showingDatePicker = false
-                            }
-                        }
-                        .compactGradientButtonStyle(color: .gray)
-
-                        Button(getLocalizedText("今天", "Today")) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                viewModel.selectedDate = Date()
-                            }
-                            // 确保数据加载
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                viewModel.forceRefreshTimeEntries()
-                            }
-                            withAnimation(.spring()) {
-                                showingDatePicker = false
-                            }
-                        }
-                        .compactGradientButtonStyle(color: .purple)
-
-                        Button(getLocalizedText("明天", "Tomorrow")) {
-                            if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    viewModel.selectedDate = tomorrow
-                                }
-                                // 确保数据加载
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.forceRefreshTimeEntries()
-                                }
-                            }
-                            withAnimation(.spring()) {
-                                showingDatePicker = false
-                            }
-                        }
-                        .compactGradientButtonStyle(color: .gray)
-                    }
-                }
-                .transition(.opacity.combined(with: .scale))
-            }
-        }
-    }
-
-    private var hoursInputSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(localizationManager.localized(.timeWorkDuration), systemImage: "clock")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            VStack(spacing: 12) {
-                HStack {
-                    Text(localizationManager.localized(.timeDuration))
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                    Spacer()
-
-                    HStack(spacing: 8) {
-                        Button {
-                            if viewModel.hours > 0.5 {
-                                viewModel.hours -= 0.5
-                            }
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundColor(viewModel.hours <= 0.5 ? .gray : .red)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(viewModel.hours <= 0.5)
-
-                        Text("\(String(format: "%.1f", viewModel.hours)) \(localizationManager.localized(.homeHours))")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .frame(minWidth: 100)
-
-                        Button {
-                            if viewModel.hours < 24.0 {
-                                viewModel.hours += 0.5
-                            }
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(viewModel.hours >= 24.0 ? .gray : .green)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(viewModel.hours >= 24.0)
-                    }
-                }
-
-                Slider(
-                    value: $viewModel.hours,
-                    in: 0.5...24.0,
-                    step: 0.5
-                ) {
-                    Text(localizationManager.localized(.timeWorkDuration))
-                } minimumValueLabel: {
-                    Text("0.5")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } maximumValueLabel: {
-                    Text("24")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .tint(.purple)
-            }
-        }
-    }
-
-    private var projectSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Label(localizationManager.localized(.timeProject), systemImage: "folder")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            if viewModel.isLoading {
-                VStack(spacing: 12) {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text(localizationManager.localized(.loading))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else if viewModel.projects.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "folder.badge.questionmark")
-                        .font(.system(size: 40))
-                        .foregroundColor(.orange)
-
-                    Text(localizationManager.localized(.timeNoProjects))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-            } else {
-                VStack(spacing: 12) {
-                    // Project Selection
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("", selection: $viewModel.selectedProject) {
-                            Text(localizationManager.localized(.timeSelectProject)).tag(nil as Project?)
-                            ForEach(viewModel.projects, id: \.id) { project in
-                                HStack {
-                                    Text(project.name)
-                                    Spacer()
-                                    if !project.tasks.isEmpty {
-                                        Text("\(project.tasks.count)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.purple.opacity(0.1))
-                                            .cornerRadius(4)
-                                    }
-                                }
-                                .tag(project as Project?)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    // Task Selection (if available)
-                    if let project = viewModel.selectedProject, !project.tasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Picker("", selection: $viewModel.selectedTask) {
-                                Text(localizationManager.localized(.timeSelectTask)).tag(nil as Task?)
-                                ForEach(project.tasks, id: \.id) { task in
-                                    Text(task.name).tag(task as Task?)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-                            .frame(maxWidth: .infinity)
-                        }
-                        .transition(.opacity.combined(with: .scale))
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.selectedProject?.id)
-                    }
-                }
-            }
-        }
-    }
-
-    private var notesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(localizationManager.localized(.timeNotes), systemImage: "text.alignleft")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            TextEditor(text: $viewModel.note)
-                .focused($isTextFieldFocused) // 添加焦点状态绑定
-                .frame(minHeight: 80)
-                .padding(8)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                )
-        }
-    }
-
-    private var submitButton: some View {
-        Button(action: {
-            viewModel.submitTimeEntry()
-        }) {
-            HStack {
-                if viewModel.isSubmitting {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(0.8)
-                }
-                Text(viewModel.isSubmitting ? localizationManager.localized(.timeSubmitting) : localizationManager.localized(.timeSubmit))
-                    .font(.headline)
-                    .fontWeight(.semibold)
-            }
-        }
-        .primaryGradientButtonStyle(isDisabled: viewModel.isSubmitting)
-        .disabled(viewModel.isSubmitting)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isSubmitting)
-    }
+    // MARK: - Legacy sections removed - functionality moved to quickTimeEntrySection
 
     private var formattedDate: String {
         let formatter = DateFormatter()
