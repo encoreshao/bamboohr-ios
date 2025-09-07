@@ -20,8 +20,9 @@ final class User {
     var location: String?
     var email: String?
     var phone: String?
+    var hireDate: String?
 
-    init(id: String, firstName: String, lastName: String, jobTitle: String, department: String, photoUrl: String? = nil, nickname: String? = nil, location: String? = nil, email: String? = nil, phone: String? = nil) {
+    init(id: String, firstName: String, lastName: String, jobTitle: String, department: String, photoUrl: String? = nil, nickname: String? = nil, location: String? = nil, email: String? = nil, phone: String? = nil, hireDate: String? = nil) {
         self.id = id
         self.firstName = firstName
         self.lastName = lastName
@@ -32,6 +33,7 @@ final class User {
         self.location = location
         self.email = email
         self.phone = phone
+        self.hireDate = hireDate
     }
 
     var fullName: String {
@@ -56,6 +58,7 @@ extension User: Codable {
         case location
         case email
         case phone
+        case hireDate
     }
 
     convenience init(from decoder: Decoder) throws {
@@ -71,7 +74,7 @@ extension User: Codable {
         let location = try container.decodeIfPresent(String.self, forKey: .location)
         let email = try container.decodeIfPresent(String.self, forKey: .email)
         let phone = try container.decodeIfPresent(String.self, forKey: .phone)
-
+        let hireDate = try container.decodeIfPresent(String.self, forKey: .hireDate)
         self.init(
             id: id,
             firstName: firstName,
@@ -82,7 +85,8 @@ extension User: Codable {
             nickname: nickname,
             location: location,
             email: email,
-            phone: phone
+            phone: phone,
+            hireDate: hireDate
         )
     }
 
@@ -98,5 +102,6 @@ extension User: Codable {
         try container.encodeIfPresent(location, forKey: .location)
         try container.encodeIfPresent(email, forKey: .email)
         try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(hireDate, forKey: .hireDate)
     }
 }

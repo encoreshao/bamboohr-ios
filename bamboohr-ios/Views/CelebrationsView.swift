@@ -213,15 +213,19 @@ struct CelebrationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(viewModel.celebrationColor(for: celebration.type).opacity(0.15))
-                    .frame(width: 44, height: 44)
+            // Profile Picture or Icon
+            if let profileImageUrl = celebration.profileImageUrl {
+                AvatarView(name: celebration.employeeName, photoUrl: profileImageUrl, size: 44)
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(viewModel.celebrationColor(for: celebration.type).opacity(0.15))
+                        .frame(width: 44, height: 44)
 
-                Image(systemName: celebration.type.iconName)
-                    .foregroundColor(viewModel.celebrationColor(for: celebration.type))
-                    .font(.system(size: 18, weight: .semibold))
+                    Image(systemName: celebration.type.iconName)
+                        .foregroundColor(viewModel.celebrationColor(for: celebration.type))
+                        .font(.system(size: 18, weight: .semibold))
+                }
             }
 
             // Content
@@ -291,10 +295,15 @@ struct CelebrationCompactRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: celebration.type.iconName)
-                .foregroundColor(viewModel.celebrationColor(for: celebration.type))
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 20)
+            // Show profile picture if available, otherwise show type icon
+            if let profileImageUrl = celebration.profileImageUrl {
+                AvatarView(name: celebration.employeeName, photoUrl: profileImageUrl, size: 20)
+            } else {
+                Image(systemName: celebration.type.iconName)
+                    .foregroundColor(viewModel.celebrationColor(for: celebration.type))
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 20)
+            }
 
             Text(celebration.employeeName)
                 .font(.caption)

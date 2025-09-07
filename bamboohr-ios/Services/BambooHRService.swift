@@ -8,6 +8,35 @@
 import Foundation
 import Combine
 
+// MARK: - Data Structures for Two-Step Celebrations Fetch
+
+struct EmployeeBasicInfo {
+    let id: String
+    let firstName: String?
+    let lastName: String?
+    let department: String?
+}
+
+struct EmployeeDetailInfo {
+    let id: String
+    let firstName: String
+    let lastName: String
+    let department: String?
+    let hireDate: String?
+    let dateOfBirth: String?
+    let photoUrl: String?
+    let preferredName: String?
+
+    // Computed property for display name (similar to User.fullName)
+    var displayName: String {
+        if let preferredName = preferredName, !preferredName.isEmpty {
+            return "\(preferredName) \(lastName)"
+        } else {
+            return "\(firstName) \(lastName)"
+        }
+    }
+}
+
 enum BambooHRError: Error {
     case invalidURL
     case invalidResponse
@@ -30,6 +59,9 @@ class UserXMLParser: NSObject, XMLParserDelegate {
     private var location = ""
     private var photoUrl: String?
     private var preferredName: String?
+    private var email: String?
+    private var phone: String?
+    private var hireDate: String?
     // Buffer for collecting text content
     private var currentText = ""
     // Flag to track if we're inside the employee element
@@ -65,6 +97,9 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 photoUrl: photoUrl,
                 nickname: preferredName,
                 location: location,
+                email: email,
+                phone: phone,
+                hireDate: hireDate
             )
             isParsingEmployee = false
         } else if elementName == "field" && isParsingEmployee {
@@ -85,6 +120,12 @@ class UserXMLParser: NSObject, XMLParserDelegate {
                 photoUrl = fieldValue
             case "preferredName":
                 preferredName = fieldValue
+            case "email":
+                email = fieldValue
+            case "phone":
+                phone = fieldValue
+            case "hireDate":
+                hireDate = fieldValue
             default:
                 print("DEBUG: Ignoring unknown field: \(currentFieldId)")
             }
@@ -100,6 +141,70 @@ class UserXMLParser: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
         print("DEBUG: XML parsing error: \(parseError.localizedDescription)")
+    }
+}
+
+// MARK: - XML Parser for Employee Detail
+class EmployeeDetailXMLParser: NSObject, XMLParserDelegate {
+    var firstName = ""
+    var lastName = ""
+    var department: String?
+    var hireDate: String?
+    var dateOfBirth: String?
+    var photoUrl: String?
+    var preferredName: String?
+
+    private var currentElement = ""
+    private var currentFieldId = ""
+    private var currentText = ""
+    private var isParsingEmployee = false
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        currentText = ""
+        currentElement = elementName
+
+        if elementName == "employee" {
+            isParsingEmployee = true
+        } else if elementName == "field" && isParsingEmployee {
+            if let fieldId = attributeDict["id"] {
+                currentFieldId = fieldId
+            }
+        }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "field" && isParsingEmployee {
+            let fieldValue = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch currentFieldId {
+            case "firstName":
+                firstName = fieldValue
+            case "lastName":
+                lastName = fieldValue
+            case "department":
+                department = fieldValue.isEmpty ? nil : fieldValue
+            case "hireDate":
+                hireDate = fieldValue.isEmpty ? nil : fieldValue
+            case "dateOfBirth":
+                dateOfBirth = fieldValue.isEmpty ? nil : fieldValue
+            case "photoUrl":
+                photoUrl = fieldValue.isEmpty ? nil : fieldValue
+            case "preferredName":
+                preferredName = fieldValue.isEmpty ? nil : fieldValue
+            default:
+                break
+            }
+            currentFieldId = ""
+        } else if elementName == "employee" {
+            isParsingEmployee = false
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        currentText += string
+    }
+
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        print("DEBUG: Employee detail XML parsing error: \(parseError.localizedDescription)")
     }
 }
 
@@ -143,7 +248,7 @@ class BambooHRService {
         // Use URLComponents to properly add query parameters
         var components = URLComponents(url: baseEndpoint, resolvingAgainstBaseURL: true)
         components?.queryItems = [
-            URLQueryItem(name: "fields", value: "firstName,lastName,jobTitle,department,location,preferredName")
+            URLQueryItem(name: "fields", value: "firstName,lastName,jobTitle,department,location,preferredName,email,phone,hireDate,photoUrl")
         ]
 
         guard let endpoint = components?.url else {
@@ -687,6 +792,7 @@ class BambooHRService {
                         let homePhone: String?
                         let mobilePhone: String?
                         let workPhone: String?
+                        let hireDate: String?
                     }
 
                     let response = try decoder.decode(DirectoryResponse.self, from: data)
@@ -710,6 +816,7 @@ class BambooHRService {
 
                         // Determine best phone number (prioritize mobile, then work, then home)
                         let phone = employee.mobilePhone ?? employee.workPhone ?? employee.homePhone
+                        let hireDate = employee.hireDate ?? ""
 
                         return User(
                             id: employee.id,
@@ -721,7 +828,8 @@ class BambooHRService {
                             nickname: employee.preferredName,
                             location: employee.location,
                             email: employee.workEmail,
-                            phone: phone
+                            phone: phone,
+                            hireDate: hireDate
                         )
                     }
 
@@ -838,25 +946,383 @@ class BambooHRService {
                 .eraseToAnyPublisher()
         }
 
-        print("DEBUG: Using real BambooHR API for celebrations data")
+        print("DEBUG: Using new two-step BambooHR API approach for celebrations data")
         print("DEBUG: Company domain: \(settings.companyDomain)")
         print("DEBUG: Base URL: \(baseUrl.absoluteString)")
 
-        // Try enhanced employee endpoint with birthday and hire date fields first
-        return fetchEmployeeCelebrationData(settings: settings, baseUrl: baseUrl)
-            .catch { error -> AnyPublisher<[Celebration], BambooHRError> in
-                print("DEBUG: Enhanced employee data fetch failed: \(error)")
-                print("DEBUG: Falling back to directory endpoint")
-                return self.fetchCelebrationsFromDirectory(settings: settings, baseUrl: baseUrl)
+        // New two-step approach
+        return fetchAllEmployeesRecords(settings: settings, baseUrl: baseUrl)
+            .flatMap { employees -> AnyPublisher<[Celebration], BambooHRError> in
+                print("DEBUG: Step 1 complete - fetched \(employees.count) employee records")
+                return self.fetchEmployeesDetailsForCelebrations(employees: employees, settings: settings, baseUrl: baseUrl)
             }
             .catch { error -> AnyPublisher<[Celebration], BambooHRError> in
-                print("DEBUG: All real API attempts failed: \(error)")
-                print("DEBUG: Using sample celebration data as final fallback")
-                return Just(self.generateCelebrations())
-                    .setFailureType(to: BambooHRError.self)
+                print("DEBUG: Two-step API approach failed: \(error)")
+                print("DEBUG: Falling back to legacy approach")
+                return self.fetchEmployeeCelebrationData(settings: settings, baseUrl: baseUrl)
+                    .catch { legacyError -> AnyPublisher<[Celebration], BambooHRError> in
+                        print("DEBUG: Legacy approach also failed: \(legacyError)")
+                        print("DEBUG: Using sample celebration data as final fallback")
+                        return Just(self.generateCelebrations())
+                            .setFailureType(to: BambooHRError.self)
+                            .eraseToAnyPublisher()
+                    }
                     .eraseToAnyPublisher()
             }
             .eraseToAnyPublisher()
+    }
+
+    // MARK: - Step 1: Fetch All Employee Records
+    private func fetchAllEmployeesRecords(settings: AccountSettings, baseUrl: URL) -> AnyPublisher<[EmployeeBasicInfo], BambooHRError> {
+        print("DEBUG: Step 1 - Fetching all employee records from directory")
+
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/directory")
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        print("DEBUG: Fetching employee directory from: \(endpoint.absoluteString)")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in fetchAllEmployeesRecords: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<[EmployeeBasicInfo], BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in fetchAllEmployeesRecords")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                print("DEBUG: Employee records response status: \(httpResponse.statusCode)")
+
+                guard httpResponse.statusCode == 200 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in fetchAllEmployeesRecords")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in fetchAllEmployeesRecords: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Employee records response body: \(responseString)")
+                        }
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                    }
+                }
+
+                return self.parseEmployeeBasicInfo(data: data)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Step 2: Fetch Individual Employee Details for Celebrations
+    private func fetchEmployeesDetailsForCelebrations(employees: [EmployeeBasicInfo], settings: AccountSettings, baseUrl: URL) -> AnyPublisher<[Celebration], BambooHRError> {
+        print("DEBUG: Step 2 - Fetching detailed information for \(employees.count) employees")
+
+        // Create individual requests for each employee to get their hireDate and dateOfBirth
+        let detailPublishers = employees.map { employee in
+            fetchEmployeeDetailWithFallback(basicInfo: employee, settings: settings, baseUrl: baseUrl)
+        }
+
+        // Execute all requests concurrently and wait for all to complete
+        return Publishers.MergeMany(detailPublishers)
+            .collect()
+            .map { employeeDetails -> [Celebration] in
+                print("DEBUG: Step 2 complete - fetched details for \(employeeDetails.count) employees")
+
+                // Log how many employees have valid vs empty data
+                let validEmployees = employeeDetails.filter { !$0.displayName.trimmingCharacters(in: .whitespaces).isEmpty }
+                let emptyEmployees = employeeDetails.filter { $0.displayName.trimmingCharacters(in: .whitespaces).isEmpty }
+
+                print("DEBUG: Valid employee details: \(validEmployees.count)")
+                print("DEBUG: Empty/failed employee details: \(emptyEmployees.count)")
+
+                if !emptyEmployees.isEmpty {
+                    print("DEBUG: Failed employee IDs: \(emptyEmployees.map { $0.id }.joined(separator: ", "))")
+                }
+
+                return self.generateCelebrationsFromEmployeeDetails(employeeDetails)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch Individual Employee Detail with Fallback
+    private func fetchEmployeeDetailWithFallback(basicInfo: EmployeeBasicInfo, settings: AccountSettings, baseUrl: URL) -> AnyPublisher<EmployeeDetailInfo, BambooHRError> {
+        return fetchEmployeeDetailWithRetry(employeeId: basicInfo.id, settings: settings, baseUrl: baseUrl, retryCount: 2)
+            .map { detailInfo -> EmployeeDetailInfo in
+                // If we got an empty result, create a fallback using basic info
+                if detailInfo.displayName.trimmingCharacters(in: .whitespaces).isEmpty {
+                    print("DEBUG: Using fallback basic info for employee \(basicInfo.id)")
+                    return EmployeeDetailInfo(
+                        id: basicInfo.id,
+                        firstName: basicInfo.firstName ?? "",
+                        lastName: basicInfo.lastName ?? "",
+                        department: basicInfo.department,
+                        hireDate: nil, // No hire date available from basic info
+                        dateOfBirth: nil, // No birth date available from basic info
+                        photoUrl: nil, // No photo URL available from basic info
+                        preferredName: nil // No preferred name available from basic info
+                    )
+                } else {
+                    return detailInfo
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch Individual Employee Detail
+    private func fetchEmployeeDetail(employeeId: String, settings: AccountSettings, baseUrl: URL) -> AnyPublisher<EmployeeDetailInfo, BambooHRError> {
+        return fetchEmployeeDetailWithRetry(employeeId: employeeId, settings: settings, baseUrl: baseUrl, retryCount: 2)
+    }
+
+    // Helper method with retry logic
+    private func fetchEmployeeDetailWithRetry(employeeId: String, settings: AccountSettings, baseUrl: URL, retryCount: Int) -> AnyPublisher<EmployeeDetailInfo, BambooHRError> {
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/\(employeeId)")
+
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
+        components?.queryItems = [
+            URLQueryItem(name: "fields", value: "firstName,lastName,department,jobTitle,hireDate,dateOfBirth,preferredName,photoUrl")
+        ]
+
+        guard let url = components?.url else {
+            print("DEBUG: Failed to create employee detail URL for employee \(employeeId)")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/xml", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error fetching employee \(employeeId): \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<EmployeeDetailInfo, BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response for employee \(employeeId)")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    print("DEBUG: Failed to fetch employee \(employeeId) - status: \(httpResponse.statusCode), retries left: \(retryCount)")
+
+                    // If we have retries left and it's a temporary error, retry
+                    if retryCount > 0 && (httpResponse.statusCode >= 500 || httpResponse.statusCode == 429) {
+                        print("DEBUG: Retrying employee \(employeeId) API call in 1 second...")
+                        return Just(())
+                            .delay(for: .seconds(1), scheduler: DispatchQueue.global())
+                            .flatMap { _ in
+                                self.fetchEmployeeDetailWithRetry(employeeId: employeeId, settings: settings, baseUrl: baseUrl, retryCount: retryCount - 1)
+                            }
+                            .eraseToAnyPublisher()
+                    }
+
+                    // If no retries left or permanent error, return empty detail
+                    print("DEBUG: No more retries for employee \(employeeId) or permanent error")
+                    let emptyDetail = EmployeeDetailInfo(
+                        id: employeeId,
+                        firstName: "",
+                        lastName: "",
+                        department: nil,
+                        hireDate: nil,
+                        dateOfBirth: nil,
+                        photoUrl: nil,
+                        preferredName: nil
+                    )
+                    return Just(emptyDetail)
+                        .setFailureType(to: BambooHRError.self)
+                        .eraseToAnyPublisher()
+                }
+
+                return self.parseEmployeeDetailXML(data: data, employeeId: employeeId)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Parse Employee Basic Info from Directory
+    private func parseEmployeeBasicInfo(data: Data) -> AnyPublisher<[EmployeeBasicInfo], BambooHRError> {
+        do {
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("DEBUG: Employee basic info response: \(String(jsonString.prefix(300)))...")
+            }
+
+            var employeeData: [[String: Any]] = []
+
+            // Try parsing as directory response with employees array
+            if let responseObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let employees = responseObject["employees"] as? [[String: Any]] {
+                employeeData = employees
+                print("DEBUG: Parsed basic info as response object with \(employeeData.count) employees")
+            }
+            // Try parsing as array directly
+            else if let directArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                employeeData = directArray
+                print("DEBUG: Parsed basic info as direct array with \(employeeData.count) employees")
+            }
+
+            let employees = employeeData.compactMap { employee -> EmployeeBasicInfo? in
+                guard let id = employee["id"] as? String, !id.isEmpty else { return nil }
+
+                return EmployeeBasicInfo(
+                    id: id,
+                    firstName: employee["firstName"] as? String,
+                    lastName: employee["lastName"] as? String,
+                    department: employee["department"] as? String
+                )
+            }
+
+            print("DEBUG: Successfully parsed \(employees.count) employee basic records")
+            return Just(employees)
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+
+        } catch {
+            print("DEBUG: Failed to parse employee basic info: \(error.localizedDescription)")
+            return Fail(error: BambooHRError.decodingError(error)).eraseToAnyPublisher()
+        }
+    }
+
+    // MARK: - Parse Employee Detail XML
+    private func parseEmployeeDetailXML(data: Data, employeeId: String) -> AnyPublisher<EmployeeDetailInfo, BambooHRError> {
+        if let xmlString = String(data: data, encoding: .utf8) {
+            print("DEBUG: Employee \(employeeId) XML response: \(String(xmlString.prefix(300)))...")
+        }
+
+        let parser = XMLParser(data: data)
+        let xmlHandler = EmployeeDetailXMLParser()
+        parser.delegate = xmlHandler
+
+        if parser.parse() {
+                let detail = EmployeeDetailInfo(
+                    id: employeeId,
+                    firstName: xmlHandler.firstName,
+                    lastName: xmlHandler.lastName,
+                    department: xmlHandler.department,
+                    hireDate: xmlHandler.hireDate,
+                    dateOfBirth: xmlHandler.dateOfBirth,
+                    photoUrl: xmlHandler.photoUrl,
+                    preferredName: xmlHandler.preferredName
+                )
+            print("DEBUG: Successfully parsed details for employee \(employeeId)")
+            return Just(detail)
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+        } else {
+            print("DEBUG: Failed to parse XML for employee \(employeeId)")
+            let emptyDetail = EmployeeDetailInfo(
+                id: employeeId,
+                firstName: "",
+                lastName: "",
+                department: nil,
+                hireDate: nil,
+                dateOfBirth: nil,
+                photoUrl: nil,
+                preferredName: nil
+            )
+            return Just(emptyDetail)
+                .setFailureType(to: BambooHRError.self)
+                .eraseToAnyPublisher()
+        }
+    }
+
+    // MARK: - Generate Celebrations from Employee Details
+    private func generateCelebrationsFromEmployeeDetails(_ employeeDetails: [EmployeeDetailInfo]) -> [Celebration] {
+        let calendar = Calendar.current
+        let today = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        var celebrations: [Celebration] = []
+
+        print("DEBUG: Generating celebrations from \(employeeDetails.count) employee details")
+
+        for employee in employeeDetails {
+            let displayName = employee.displayName.trimmingCharacters(in: .whitespaces)
+
+            // Skip if name is empty
+            guard !displayName.isEmpty else {
+                print("DEBUG: Skipping employee with empty name: \(employee.id)")
+                continue
+            }
+
+            print("DEBUG: Processing employee: \(displayName) (ID: \(employee.id))")
+
+            // Parse birthday
+            if let birthdayStr = employee.dateOfBirth,
+               !birthdayStr.isEmpty,
+               let birthDate = dateFormatter.date(from: birthdayStr) {
+                if let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 1) {
+                    // Construct profile image URL if photoUrl is not available but employee ID is available
+                    var profileImageUrl = employee.photoUrl
+                    if profileImageUrl == nil || profileImageUrl?.isEmpty == true {
+                        if let settings = accountSettings {
+                            profileImageUrl = "https://api.bamboohr.com/api/gateway.php/\(settings.companyDomain)/v1/employees/\(employee.id)/photo/large"
+                        }
+                    }
+
+                    celebrations.append(Celebration(
+                        employeeId: employee.id,
+                        employeeName: displayName,
+                        type: .birthday,
+                        date: nextBirthday,
+                        department: employee.department,
+                        profileImageUrl: profileImageUrl
+                    ))
+                    print("DEBUG: Added birthday celebration for \(displayName) on \(nextBirthday)")
+                }
+            } else {
+                if employee.dateOfBirth == nil || employee.dateOfBirth?.isEmpty == true {
+                    print("DEBUG: No birthday data for employee: \(displayName)")
+                }
+            }
+
+            // Parse work anniversary
+            if let hireDateStr = employee.hireDate,
+               !hireDateStr.isEmpty,
+               let hireDate = dateFormatter.date(from: hireDateStr) {
+                if let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 1) {
+                    let yearsWorked = calendar.dateComponents([.year], from: hireDate, to: nextAnniversary).year ?? 0
+
+                    // Construct profile image URL if photoUrl is not available but employee ID is available
+                    var profileImageUrl = employee.photoUrl
+                    if profileImageUrl == nil || profileImageUrl?.isEmpty == true {
+                        if let settings = accountSettings {
+                            profileImageUrl = "https://api.bamboohr.com/api/gateway.php/\(settings.companyDomain)/v1/employees/\(employee.id)/photo/large"
+                        }
+                    }
+
+                    celebrations.append(Celebration(
+                        employeeId: employee.id,
+                        employeeName: displayName,
+                        type: .workAnniversary,
+                        date: nextAnniversary,
+                        yearsCount: yearsWorked,
+                        department: employee.department,
+                        profileImageUrl: profileImageUrl
+                    ))
+                    print("DEBUG: Added work anniversary for \(displayName) on \(nextAnniversary) (\(yearsWorked) years)")
+                }
+            } else {
+                if employee.hireDate == nil || employee.hireDate?.isEmpty == true {
+                    print("DEBUG: No hire date data for employee: \(displayName)")
+                }
+            }
+        }
+
+        // Sort by date
+        celebrations.sort { $0.date < $1.date }
+
+        print("DEBUG: Generated \(celebrations.count) celebrations from employee details")
+        return celebrations
     }
 
         // MARK: - Enhanced Employee Data Fetch with Birthday/Hire Date
@@ -866,7 +1332,7 @@ class BambooHRService {
 
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
         components?.queryItems = [
-            URLQueryItem(name: "fields", value: "id,firstName,lastName,department,dateOfBirth,hireDate,jobTitle,location"),
+            URLQueryItem(name: "fields", value: "id,firstName,lastName,department,dateOfBirth,hireDate,jobTitle,location,photoUrl,preferredName,email,phone,workPhone,homePhone"),
             URLQueryItem(name: "format", value: "json")
         ]
 
@@ -1053,27 +1519,41 @@ class BambooHRService {
 
             let firstName = employee["firstName"] as? String ?? ""
             let lastName = employee["lastName"] as? String ?? ""
-            let fullName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
+            let preferredName = employee["preferredName"] as? String
+
+            // Construct display name using same logic as EmployeeDetailInfo
+            let displayName: String
+            if let preferredName = preferredName, !preferredName.isEmpty {
+                displayName = "\(preferredName) \(lastName)"
+            } else {
+                displayName = "\(firstName) \(lastName)"
+            }
+            let finalDisplayName = displayName.trimmingCharacters(in: .whitespaces)
 
             // Skip if name is empty
-            guard !fullName.isEmpty else { continue }
+            guard !finalDisplayName.isEmpty else { continue }
 
             let department = employee["department"] as? String
+
+            // Get profile image URL
+            let photoUrl = employee["photoUrl"] as? String
+            let profileImageUrl = photoUrl ?? "https://api.bamboohr.com/api/gateway.php/\(companyDomain)/v1/employees/\(employeeId)/photo/large"
 
             // Parse birthday - try multiple possible field names
             let birthdayFields = ["dateOfBirth", "birthDate", "birthday"]
             for field in birthdayFields {
                 if let birthdayStr = employee[field] as? String,
                    let birthDate = dateFormatter.date(from: birthdayStr) {
-                    if let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 6) {
+                    if let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 1) {
                         celebrations.append(Celebration(
                             employeeId: employeeId,
-                            employeeName: fullName,
+                            employeeName: finalDisplayName,
                             type: .birthday,
                             date: nextBirthday,
-                            department: department
+                            department: department,
+                            profileImageUrl: profileImageUrl
                         ))
-                        print("DEBUG: Added birthday celebration for \(fullName) on \(nextBirthday)")
+                        print("DEBUG: Added birthday celebration for \(finalDisplayName) on \(nextBirthday)")
                     }
                     break // Found birthday, no need to check other fields
                 }
@@ -1084,17 +1564,18 @@ class BambooHRService {
             for field in hireDateFields {
                 if let hireDateStr = employee[field] as? String,
                    let hireDate = dateFormatter.date(from: hireDateStr) {
-                    if let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 6) {
+                    if let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 1) {
                         let yearsWorked = calendar.dateComponents([.year], from: hireDate, to: nextAnniversary).year ?? 0
                         celebrations.append(Celebration(
                             employeeId: employeeId,
-                            employeeName: fullName,
+                            employeeName: finalDisplayName,
                             type: .workAnniversary,
                             date: nextAnniversary,
                             yearsCount: yearsWorked,
-                            department: department
+                            department: department,
+                            profileImageUrl: profileImageUrl
                         ))
-                        print("DEBUG: Added work anniversary for \(fullName) on \(nextAnniversary) (\(yearsWorked) years)")
+                        print("DEBUG: Added work anniversary for \(finalDisplayName) on \(nextAnniversary) (\(yearsWorked) years)")
                     }
                     break // Found hire date, no need to check other fields
                 }
@@ -1108,7 +1589,7 @@ class BambooHRService {
 
         // Return real celebrations even if empty - let the main method handle fallback
         if celebrations.isEmpty {
-            print("DEBUG: No real celebrations found in employee data for the next 6 months")
+            print("DEBUG: No real celebrations found in employee data for the next month")
         }
 
         return Just(celebrations)
@@ -1116,8 +1597,20 @@ class BambooHRService {
             .eraseToAnyPublisher()
     }
 
+    // MARK: - Sample Employee Data for Fallback
+    private let employees: [(String, String, String, String)] = [
+        ("Alice Johnson", "Engineering", "1990-03-15", "2018-02-10"),
+        ("Bob Smith", "Marketing", "1985-07-22", "2016-05-15"),
+        ("Carol Davis", "HR", "1992-11-08", "2019-08-20"),
+        ("David Wilson", "Sales", "1988-01-30", "2017-03-05"),
+        ("Emma Brown", "Design", "1991-09-12", "2020-01-15"),
+        ("Frank Miller", "Engineering", "1987-05-18", "2015-09-10"),
+        ("Grace Lee", "Finance", "1993-02-28", "2021-04-12"),
+        ("Henry Taylor", "Operations", "1989-12-05", "2016-11-08")
+    ]
+
     private func generateCelebrations() -> [Celebration] {
-        // Generate sample celebrations for the next 2 months
+        // Generate sample celebrations for the next month
         let calendar = Calendar.current
         let today = Date()
         var celebrations: [Celebration] = []
@@ -1131,30 +1624,6 @@ class BambooHRService {
             department: "🎂 Happy Birthday!"
         ))
 
-        // Sample employee data with birthdays and hire dates (expanded for more celebrations)
-        let employees = [
-            ("Alice Johnson", "Engineering", "1990-03-20", "2020-01-15"),
-            ("Bob Smith", "Marketing", "1985-07-12", "2019-03-10"),
-            ("Carol Davis", "HR", "1992-11-08", "2021-06-20"),
-            ("David Wilson", "Sales", "1988-09-25", "2022-09-25"),
-            ("Emma Brown", "Design", "1995-12-03", "2018-12-03"),
-            ("Frank Miller", "Engineering", "1987-04-18", "2017-04-18"),
-            ("Grace Lee", "Finance", "1993-08-14", "2020-08-14"),
-            ("Henry Clark", "Operations", "1986-10-30", "2016-10-30"),
-            ("Isabella Chen", "Product", "1991-01-25", "2019-01-25"),
-            ("Jack Anderson", "Engineering", "1989-02-14", "2021-02-14"),
-            ("Kelly Thompson", "Marketing", "1994-05-18", "2020-05-18"),
-            ("Liam Rodriguez", "Sales", "1987-06-30", "2018-06-30"),
-            ("Mia Williams", "Design", "1993-04-12", "2022-04-12"),
-            ("Noah Jackson", "Finance", "1990-09-05", "2017-09-05"),
-            ("Olivia Martinez", "HR", "1988-11-22", "2019-11-22"),
-            ("Parker White", "Operations", "1992-07-08", "2021-07-08"),
-            ("Quinn Taylor", "Engineering", "1985-03-15", "2016-03-15"),
-            ("Ruby Harris", "Product", "1996-08-29", "2023-08-29"),
-            ("Samuel Clark", "Marketing", "1984-12-10", "2015-12-10"),
-            ("Tessa Lewis", "Sales", "1991-10-17", "2020-10-17")
-        ]
-
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
@@ -1162,9 +1631,9 @@ class BambooHRService {
             let (name, department, birthdayStr, hireDateStr) = employeeData
             let employeeId = String(format: "%03d", index + 1)
 
-            // Calculate next birthday in the next 6 months
+            // Calculate next birthday in the next month
             if let birthDate = dateFormatter.date(from: birthdayStr) {
-                let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 6)
+                let nextBirthday = getNextOccurrence(of: birthDate, from: today, within: 1)
                 if let nextBirthday = nextBirthday {
                     celebrations.append(Celebration(
                         employeeId: employeeId,
@@ -1176,9 +1645,9 @@ class BambooHRService {
                 }
             }
 
-            // Calculate next work anniversary in the next 6 months
+            // Calculate next work anniversary in the next month
             if let hireDate = dateFormatter.date(from: hireDateStr) {
-                let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 6)
+                let nextAnniversary = getNextOccurrence(of: hireDate, from: today, within: 1)
                 if let nextAnniversary = nextAnniversary {
                     let yearsWorked = calendar.dateComponents([.year], from: hireDate, to: nextAnniversary).year ?? 0
                     celebrations.append(Celebration(
