@@ -8,21 +8,51 @@
 import Foundation
 
 struct TimeOffRequest: Codable {
-    let employeeId: Int
+    let status: String
     let start: String
     let end: String
-    let timeOffTypeId: String
-    let amount: Double
-    let notes: String?
+    let timeOffTypeId: Int
+    let amount: Int
+    let notes: [TimeOffNote]?
+    let dates: [TimeOffDate]?
 
     enum CodingKeys: String, CodingKey {
-        case employeeId = "employeeId"
+        case status = "status"
         case start = "start"
         case end = "end"
         case timeOffTypeId = "timeOffTypeId"
         case amount = "amount"
-        case notes = "note"
+        case notes = "notes"
+        case dates = "dates"
     }
+
+    init(employeeId: Int, start: String, end: String, timeOffTypeId: String, amount: Double, notes: String?) {
+        self.status = "requested"
+        self.start = start
+        self.end = end
+        self.timeOffTypeId = Int(timeOffTypeId) ?? 0  // Convert to integer
+        self.amount = Int(amount)  // Convert to integer
+
+        // Convert notes string to BambooHR format if provided
+        if let notes = notes, !notes.isEmpty {
+            self.notes = [TimeOffNote(from: "employee", note: notes)]
+        } else {
+            self.notes = []  // Always include notes array, even if empty
+        }
+
+        // Create dates array for the range
+        self.dates = [TimeOffDate(ymd: start, amount: Int(amount))]
+    }
+}
+
+struct TimeOffNote: Codable {
+    let from: String
+    let note: String
+}
+
+struct TimeOffDate: Codable {
+    let ymd: String
+    let amount: Int
 }
 
 struct TimeOffCategory: Identifiable, Codable, Equatable {

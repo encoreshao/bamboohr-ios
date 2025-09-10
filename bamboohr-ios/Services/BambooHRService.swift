@@ -311,6 +311,113 @@ class BambooHRService {
             .eraseToAnyPublisher()
     }
 
+    // MARK: - Fetch Time Off Requests (All statuses including pending)
+    func fetchTimeOffRequests(startDate: Date, endDate: Date) -> AnyPublisher<[BambooLeaveInfo], BambooHRError> {
+        guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
+            print("DEBUG: Invalid URL or missing account settings in fetchTimeOffRequests")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
+
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_off/requests")
+
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: true)
+        components?.queryItems = [
+            URLQueryItem(name: "start", value: startDateString),
+            URLQueryItem(name: "end", value: endDateString),
+            URLQueryItem(name: "employeeId", value: settings.employeeId)
+        ]
+
+        print("DEBUG: Fetching time off requests from: \(startDateString) to \(endDateString)")
+        print("DEBUG: Using endpoint: \(endpoint)")
+
+        guard let url = components?.url else {
+            print("DEBUG: Failed to create URL with components for time off requests")
+            return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/xml", forHTTPHeaderField: "Accept")
+
+        // Add Basic Authentication
+        let authString = "Basic " + "\(settings.apiKey):x".data(using: .utf8)!.base64EncodedString()
+        request.addValue(authString, forHTTPHeaderField: "Authorization")
+
+        return session.dataTaskPublisher(for: request)
+            .mapError { error -> BambooHRError in
+                print("DEBUG: Network error in time off requests: \(error.localizedDescription)")
+                return BambooHRError.networkError(error)
+            }
+            .flatMap { data, response -> AnyPublisher<[BambooLeaveInfo], BambooHRError> in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("DEBUG: Invalid response type in time off requests")
+                    return Fail(error: BambooHRError.invalidResponse).eraseToAnyPublisher()
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    if httpResponse.statusCode == 401 {
+                        print("DEBUG: Authentication error (401) in time off requests")
+                        return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else {
+                        print("DEBUG: Unexpected status code in time off requests: \(httpResponse.statusCode)")
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("DEBUG: Raw time off requests response: \(responseString)")
+                        }
+                        return Fail(error: BambooHRError.unknownError("Status code: \(httpResponse.statusCode)")).eraseToAnyPublisher()
+                    }
+                }
+
+                // Log the raw response for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("DEBUG: Raw time off requests response: \(responseString)")
+                }
+
+                // Parse XML response
+                let bambooLeaveInfos = self.parseTimeOffRequestsXML(data: data)
+                print("DEBUG: Successfully parsed \(bambooLeaveInfos.count) time off requests from XML")
+
+                for request in bambooLeaveInfos {
+                    print("DEBUG: Parsed request: id=\(request.id), type=\(request.type), start=\(request.start), end=\(request.end), status=\(request.status ?? "unknown")")
+                }
+
+                return Just(bambooLeaveInfos)
+                    .setFailureType(to: BambooHRError.self)
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - XML Parser for Time Off Requests
+    private func parseTimeOffRequestsXML(data: Data) -> [BambooLeaveInfo] {
+        guard let xmlString = String(data: data, encoding: .utf8) else {
+            print("DEBUG: Failed to convert XML data to string")
+            return []
+        }
+
+        guard let xmlData = xmlString.data(using: .utf8) else {
+            print("DEBUG: Failed to convert XML string back to data")
+            return []
+        }
+
+        let parser = XMLParser(data: xmlData)
+        let delegate = TimeOffRequestXMLParserDelegate()
+        parser.delegate = delegate
+
+        if parser.parse() {
+            print("DEBUG: XML parsing completed successfully, found \(delegate.requests.count) requests")
+            return delegate.requests
+        } else {
+            print("DEBUG: XML parsing failed")
+            return []
+        }
+    }
+
+    // MARK: - Fetch Time Off Entries (Who's Out - approved only)
     func fetchTimeOffEntries(startDate: Date, endDate: Date) -> AnyPublisher<[BambooLeaveInfo], BambooHRError> {
         guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
             print("DEBUG: Invalid URL or missing account settings in fetchTimeOffEntries")
@@ -858,16 +965,17 @@ class BambooHRService {
     }
 
     // MARK: - Submit Time Off Request
-    func submitTimeOffRequest(_ request: TimeOffRequest) -> AnyPublisher<Bool, BambooHRError> {
+    func submitTimeOffRequest(_ request: TimeOffRequest, employeeId: String) -> AnyPublisher<Bool, BambooHRError> {
         guard let settings = accountSettings, let baseUrl = settings.baseUrl else {
             print("DEBUG: Invalid URL or missing account settings in submitTimeOffRequest")
             return Fail(error: BambooHRError.invalidURL).eraseToAnyPublisher()
         }
 
-        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/time_off/requests")
+        // Use the correct BambooHR API endpoint format
+        let endpoint = baseUrl.appendingPathComponent("/\(settings.companyDomain)/v1/employees/\(employeeId)/time_off/request")
 
         var urlRequest = URLRequest(url: endpoint)
-        urlRequest.httpMethod = "POST"
+        urlRequest.httpMethod = "PUT"  // BambooHR uses PUT for time off requests
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.addValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -901,10 +1009,14 @@ class BambooHRService {
 
                 print("DEBUG: Time off request response status: \(httpResponse.statusCode)")
 
-                guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+                // BambooHR typically returns 200 for successful PUT requests
+                guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 || httpResponse.statusCode == 204 else {
                     if httpResponse.statusCode == 401 {
                         print("DEBUG: Authentication error (401) in time off request submission")
                         return Fail(error: BambooHRError.authenticationError).eraseToAnyPublisher()
+                    } else if httpResponse.statusCode == 403 {
+                        print("DEBUG: Access denied (403) - insufficient permissions for time off request submission")
+                        return Fail(error: BambooHRError.unknownError("Access denied: Insufficient permissions to submit time off requests")).eraseToAnyPublisher()
                     } else {
                         print("DEBUG: Unexpected status code in time off request submission: \(httpResponse.statusCode)")
                         if let responseString = String(data: data, encoding: .utf8) {
@@ -1689,6 +1801,107 @@ class BambooHRService {
 
         return nil
     }
+}
 
+// MARK: - XML Parser Delegate for Time Off Requests
+class TimeOffRequestXMLParserDelegate: NSObject, XMLParserDelegate {
+    var requests: [BambooLeaveInfo] = []
+    private var currentRequest: [String: String] = [:]
+    private var currentElement = ""
+    private var currentValue = ""
 
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+        currentElement = elementName
+        currentValue = ""
+
+        switch elementName {
+        case "request":
+            currentRequest = [:]
+            if let id = attributeDict["id"] {
+                currentRequest["id"] = id
+            }
+        case "employee":
+            if let id = attributeDict["id"] {
+                currentRequest["employeeId"] = id
+            }
+        case "status":
+            if let lastChanged = attributeDict["lastChanged"] {
+                currentRequest["statusLastChanged"] = lastChanged
+            }
+            if let lastChangedByUserId = attributeDict["lastChangedByUserId"] {
+                currentRequest["statusLastChangedByUserId"] = lastChangedByUserId
+            }
+        case "type":
+            if let id = attributeDict["id"] {
+                currentRequest["typeId"] = id
+            }
+            if let icon = attributeDict["icon"] {
+                currentRequest["typeIcon"] = icon
+            }
+        case "amount":
+            if let unit = attributeDict["unit"] {
+                currentRequest["amountUnit"] = unit
+            }
+        default:
+            break
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        currentValue += string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        switch elementName {
+        case "request":
+            // Convert currentRequest to BambooLeaveInfo
+            if let idString = currentRequest["id"],
+               let id = Int(idString),
+               let start = currentRequest["start"],
+               let end = currentRequest["end"],
+               let type = currentRequest["type"],
+               let employee = currentRequest["employee"] {
+
+                let status = currentRequest["status"]
+                let employeeIdString = currentRequest["employeeId"]
+                let employeeId = employeeIdString != nil ? Int(employeeIdString!) : nil
+
+                let leaveInfo = BambooLeaveInfo(
+                    id: id,
+                    type: type,
+                    employeeId: employeeId,
+                    name: employee,
+                    start: start,
+                    end: end,
+                    photoUrl: nil,
+                    status: status
+                )
+
+                requests.append(leaveInfo)
+                print("DEBUG: XML Parser - Added request: id=\(id), type=\(type), start=\(start), end=\(end), status=\(status ?? "none")")
+            }
+        case "start":
+            currentRequest["start"] = currentValue
+        case "end":
+            currentRequest["end"] = currentValue
+        case "created":
+            currentRequest["created"] = currentValue
+        case "status":
+            currentRequest["status"] = currentValue
+        case "type":
+            currentRequest["type"] = currentValue
+        case "employee":
+            currentRequest["employee"] = currentValue
+        case "amount":
+            currentRequest["amount"] = currentValue
+        default:
+            break
+        }
+
+        currentValue = ""
+    }
+
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        print("DEBUG: XML parsing error: \(parseError.localizedDescription)")
+    }
 }

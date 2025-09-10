@@ -15,7 +15,7 @@ struct RequestTimeOffView: View {
     @State private var fromDate = Date()
     @State private var toDate = Date()
     @State private var selectedCategory: TimeOffCategory?
-    @State private var amount: Double = 8.0
+    @State private var amount: Double = 1.0
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var showingAlert = false
@@ -220,12 +220,12 @@ struct RequestTimeOffView: View {
 
             VStack(spacing: 16) {
                 HStack {
-                    TextField("8.0", value: $amount, format: .number)
+                    TextField("1.0", value: $amount, format: .number)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(.plain)
                         .font(.body)
 
-                    Text("hours")
+                    Text(selectedCategory?.unit ?? "days")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }

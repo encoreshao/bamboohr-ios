@@ -690,24 +690,24 @@ struct HomeView: View {
 
     // MARK: - Helper Methods
 
-    // 过滤当前用户的休假记录，只显示正在进行或未来的请求
+    // 获取当前用户的时间休假申请，只显示正在进行或未来的请求
     private var myLeaveEntries: [BambooLeaveInfo] {
-        guard let user = viewModel.user, let currentUserId = Int(user.id) else {
-            return []
-        }
         let today = Calendar.current.startOfDay(for: Date())
 
-        return leaveViewModel.leaveEntries
-            .filter { entry in
-                guard entry.employeeId == currentUserId else { return false }
+        print("DEBUG: HomeView - Processing \(leaveViewModel.myTimeOffRequests.count) personal time off requests")
 
+        let filtered = leaveViewModel.myTimeOffRequests
+            .filter { entry in
                 // 只显示正在进行中或未来的请求（结束日期在今天或之后）
                 if let endDate = entry.endDate {
                     let endOfDay = Calendar.current.startOfDay(for: endDate)
-                    return endOfDay >= today
+                    let isUpcoming = endOfDay >= today
+                    print("DEBUG: HomeView - Request \(entry.id): end=\(entry.end), isUpcoming=\(isUpcoming)")
+                    return isUpcoming
                 }
 
                 // 如果没有结束日期信息，则保留该记录
+                print("DEBUG: HomeView - Request \(entry.id): no end date, keeping")
                 return true
             }
             .sorted { entry1, entry2 in
@@ -717,6 +717,9 @@ struct HomeView: View {
                 }
                 return start1 < start2
             }
+
+        print("DEBUG: HomeView - Filtered to \(filtered.count) upcoming requests")
+        return filtered
     }
 
     // 计算今天的休假人数（与LeaveView保持一致）
@@ -906,7 +909,7 @@ struct HomeView: View {
             HStack {
                 Image(systemName: "calendar.badge.plus")
                     .foregroundColor(.purple)
-                Text(getLocalizedText("我的休假申请", "My Time Off Requests"))
+                Text(getLocalizedText("即将到来的休假申请", "Upcoming Time Off Requests"))
                     .font(.headline)
                     .fontWeight(.semibold)
                 Spacer()
@@ -1243,49 +1246,93 @@ struct TimeOffRequestRow: View {
     }
 
     private var statusColor: Color {
-        let today = Calendar.current.startOfDay(for: Date())
+        // Use request status if available, otherwise fall back to date-based logic
+        if let status = request.status {
+            switch status.lowercased() {
+            case "requested", "pending":
+                return .orange  // Pending approval
+            case "approved":
+                let today = Calendar.current.startOfDay(for: Date())
+                guard let startDate = request.startDate, let endDate = request.endDate else {
+                    return .green
+                }
+                let startOfDay = Calendar.current.startOfDay(for: startDate)
+                let endOfDay = Calendar.current.startOfDay(for: endDate)
 
+                if startOfDay <= today && endOfDay >= today {
+                    return .green  // Currently on leave
+                } else if startOfDay > today {
+                    return .blue   // Upcoming approved leave
+                } else {
+                    return .gray   // Past leave
+                }
+            case "denied", "cancelled":
+                return .red     // Denied or cancelled
+            default:
+                return .gray
+            }
+        }
+
+        // Fallback to original date-based logic
+        let today = Calendar.current.startOfDay(for: Date())
         guard let startDate = request.startDate, let endDate = request.endDate else {
             return .gray
         }
-
         let startOfDay = Calendar.current.startOfDay(for: startDate)
         let endOfDay = Calendar.current.startOfDay(for: endDate)
 
-        // Check if request is currently active (today is within the date range)
         if startOfDay <= today && endOfDay >= today {
             return .green  // Currently on leave
-        }
-        // Check if request is upcoming (starts in the future)
-        else if startOfDay > today {
+        } else if startOfDay > today {
             return .blue   // Upcoming leave
-        }
-        // This should not happen since we filter out past requests, but just in case
-        else {
-            return .gray   // Past leave (should be filtered out)
+        } else {
+            return .gray   // Past leave
         }
     }
 
     private var statusText: String {
-        let today = Calendar.current.startOfDay(for: Date())
+        // Use request status if available
+        if let status = request.status {
+            switch status.lowercased() {
+            case "requested", "pending":
+                return "Pending"
+            case "approved":
+                let today = Calendar.current.startOfDay(for: Date())
+                guard let startDate = request.startDate, let endDate = request.endDate else {
+                    return "Approved"
+                }
+                let startOfDay = Calendar.current.startOfDay(for: startDate)
+                let endOfDay = Calendar.current.startOfDay(for: endDate)
 
+                if startOfDay <= today && endOfDay >= today {
+                    return "Active"
+                } else if startOfDay > today {
+                    return "Approved"
+                } else {
+                    return "Completed"
+                }
+            case "denied":
+                return "Denied"
+            case "cancelled":
+                return "Cancelled"
+            default:
+                return status.capitalized
+            }
+        }
+
+        // Fallback to original date-based logic
+        let today = Calendar.current.startOfDay(for: Date())
         guard let startDate = request.startDate, let endDate = request.endDate else {
             return localizationManager.localized(.homeUnknown)
         }
-
         let startOfDay = Calendar.current.startOfDay(for: startDate)
         let endOfDay = Calendar.current.startOfDay(for: endDate)
 
-        // Check if request is currently active (today is within the date range)
         if startOfDay <= today && endOfDay >= today {
             return localizationManager.localized(.homeActive)
-        }
-        // Check if request is upcoming (starts in the future)
-        else if startOfDay > today {
+        } else if startOfDay > today {
             return localizationManager.localized(.homeUpcoming)
-        }
-        // This should not happen since we filter out past requests, but just in case
-        else {
+        } else {
             return localizationManager.localized(.homePast)
         }
     }
